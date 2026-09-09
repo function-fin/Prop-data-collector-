@@ -1,0 +1,431 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+
+local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+-- Assets e Configurações
+local assetIdBotao = "rbxassetid://95142798137523"
+local assetIdSolTop = "rbxassetid://107617915493772"
+local assetIdFundo = "rbxassetid://114065081553101"
+local collectedData = {}
+local selectedInstances = {}
+local clickTimer = 0
+local toolEquipped = false
+
+-- UI Principal
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PropsDataCollectorSPWN"
+screenGui.ResetOnSpawn = false
+screenGui.DisplayOrder = 10
+
+local success = pcall(function() screenGui.Parent = CoreGui end)
+if not success then screenGui.Parent = player:WaitForChild("PlayerGui") end
+
+-- Sistema de Arrasto Unificado
+local function makeDraggable(guiObject)
+    local dragging = false
+    local dragStart, startPos
+
+    guiObject.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = guiObject.Position
+
+            local connection
+            connection = input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    connection:Disconnect()
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            guiObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+-- Botão Flutuante Superior (65x65)
+local floatingBtn = Instance.new("ImageButton", screenGui)
+floatingBtn.Size = UDim2.new(0, 65, 0, 65)
+floatingBtn.Position = UDim2.new(0.03, 0, 0.25, 0)
+floatingBtn.Image = assetIdBotao
+floatingBtn.BackgroundTransparency = 1
+floatingBtn.ZIndex = 5
+makeDraggable(floatingBtn)
+
+-- Janela Principal Compacta (420x310)
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 420, 0, 310)
+mainFrame.Position = UDim2.new(0.5, -210, 0.5, -155)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.ZIndex = 10
+makeDraggable(mainFrame)
+
+local strokeMain = Instance.new("UIStroke", mainFrame)
+strokeMain.Color = Color3.fromRGB(255, 255, 255)
+strokeMain.Thickness = 2
+strokeMain.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Fundo da Estrela Diminuído e Centralizado
+local fundoEstrela = Instance.new("ImageLabel", mainFrame)
+fundoEstrela.Size = UDim2.new(0, 160, 0, 160)
+fundoEstrela.Position = UDim2.new(0.5, -80, 0.5, -80)
+fundoEstrela.BackgroundTransparency = 1
+fundoEstrela.Image = assetIdFundo
+fundoEstrela.ImageTransparency = 0.88
+fundoEstrela.ZIndex = 11
+
+-- Header
+local header = Instance.new("Frame", mainFrame)
+header.Size = UDim2.new(1, 0, 0, 40)
+header.BackgroundTransparency = 1
+header.ZIndex = 12
+
+local solIcon = Instance.new("ImageLabel", header)
+solIcon.Size = UDim2.new(0, 24, 0, 24)
+solIcon.Position = UDim2.new(0, 10, 0, 8)
+solIcon.BackgroundTransparency = 1
+solIcon.Image = assetIdSolTop
+solIcon.ZIndex = 12
+
+local headerLine = Instance.new("Frame", header)
+headerLine.Size = UDim2.new(0, 1.5, 0, 24)
+headerLine.Position = UDim2.new(0, 40, 0, 8)
+headerLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+headerLine.BorderSizePixel = 0
+headerLine.ZIndex = 12
+
+local title = Instance.new("TextLabel", header)
+title.Size = UDim2.new(0, 220, 0, 20)
+title.Position = UDim2.new(0, 48, 0, 4)
+title.BackgroundTransparency = 1
+title.Text = "Props Data Collector"
+title.Font = Enum.Font.Arcade
+title.TextSize = 18
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.ZIndex = 12
+
+local subtitle = Instance.new("TextLabel", header)
+subtitle.Size = UDim2.new(0, 220, 0, 14)
+subtitle.Position = UDim2.new(0, 48, 0, 22)
+subtitle.BackgroundTransparency = 1
+subtitle.Text = "Project SPWN 0.0.0.0.1"
+subtitle.Font = Enum.Font.Arcade
+subtitle.TextSize = 10
+subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+subtitle.TextXAlignment = Enum.TextXAlignment.Left
+subtitle.ZIndex = 12
+
+-- Botão no Header: Hide Tool / Invoke Tool
+local btnToggleTool = Instance.new("TextButton", header)
+btnToggleTool.Size = UDim2.new(0, 110, 0, 26)
+btnToggleTool.Position = UDim2.new(1, -120, 0, 7)
+btnToggleTool.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+btnToggleTool.Text = "Invoke Tool"
+btnToggleTool.Font = Enum.Font.Arcade
+btnToggleTool.TextSize = 11
+btnToggleTool.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnToggleTool.ZIndex = 13
+
+local strokeToggleTool = Instance.new("UIStroke", btnToggleTool)
+strokeToggleTool.Color = Color3.fromRGB(255, 255, 255)
+strokeToggleTool.Thickness = 1.5
+strokeToggleTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Divisores
+local divisor1 = Instance.new("Frame", mainFrame)
+divisor1.Size = UDim2.new(1, -20, 0, 1.5)
+divisor1.Position = UDim2.new(0, 10, 0, 40)
+divisor1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+divisor1.BorderSizePixel = 0
+divisor1.ZIndex = 12
+
+-- Área dos Props
+local scrollFrame = Instance.new("ScrollingFrame", mainFrame)
+scrollFrame.Size = UDim2.new(1, -20, 0, 210)
+scrollFrame.Position = UDim2.new(0, 10, 0, 45)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 5
+scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
+scrollFrame.ScrollingDirection = Enum.ScrollingDirection.XY
+scrollFrame.CanvasSize = UDim2.new(0, 950, 0, 0)
+scrollFrame.ZIndex = 12
+
+local listLayout = Instance.new("UIListLayout", scrollFrame)
+listLayout.Padding = UDim.new(0, 3)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local divisor2 = Instance.new("Frame", mainFrame)
+divisor2.Size = UDim2.new(1, -20, 0, 1.5)
+divisor2.Position = UDim2.new(0, 10, 0, 260)
+divisor2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+divisor2.BorderSizePixel = 0
+divisor2.ZIndex = 12
+
+-- Rodapé
+local footer = Instance.new("Frame", mainFrame)
+footer.Size = UDim2.new(1, 0, 0, 45)
+footer.Position = UDim2.new(0, 0, 0, 262)
+footer.BackgroundTransparency = 1
+footer.ZIndex = 12
+
+local btnClear = Instance.new("TextButton", footer)
+btnClear.Size = UDim2.new(0, 100, 0, 28)
+btnClear.Position = UDim2.new(0.22, -50, 0.5, -14)
+btnClear.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+btnClear.Text = "Clear data"
+btnClear.Font = Enum.Font.Arcade
+btnClear.TextSize = 14
+btnClear.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnClear.ZIndex = 13
+
+local strokeClear = Instance.new("UIStroke", btnClear)
+strokeClear.Color = Color3.fromRGB(255, 255, 255)
+strokeClear.Thickness = 1.5
+strokeClear.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local btnCopy = Instance.new("TextButton", footer)
+btnCopy.Size = UDim2.new(0, 140, 0, 28)
+btnCopy.Position = UDim2.new(0.68, -70, 0.5, -14)
+btnCopy.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+btnCopy.Text = "Copy data"
+btnCopy.Font = Enum.Font.Arcade
+btnCopy.TextSize = 16
+btnCopy.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnCopy.ZIndex = 13
+
+local strokeCopy = Instance.new("UIStroke", btnCopy)
+strokeCopy.Color = Color3.fromRGB(255, 255, 255)
+strokeCopy.Thickness = 1.5
+strokeCopy.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Botão Flutuante Ferramenta (Inicia oculto)
+local actionButton = Instance.new("TextButton", screenGui)
+actionButton.Name = "CollectorToolButton"
+actionButton.Size = UDim2.new(0, 65, 0, 65)
+actionButton.Position = UDim2.new(0.5, -32, 0.78, 0)
+actionButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+actionButton.BackgroundTransparency = 0
+actionButton.BorderSizePixel = 0
+actionButton.Text = "Data\nCollector\n( 0 )"
+actionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+actionButton.Font = Enum.Font.Arcade
+actionButton.TextSize = 11
+actionButton.TextWrapped = true
+actionButton.Visible = false
+actionButton.ZIndex = 1
+
+local uiPadding = Instance.new("UIPadding", actionButton)
+uiPadding.PaddingTop = UDim.new(0.08, 0)
+uiPadding.PaddingBottom = UDim.new(0.08, 0)
+uiPadding.PaddingLeft = UDim.new(0.05, 0)
+uiPadding.PaddingRight = UDim.new(0.05, 0)
+
+local uiStrokeTool = Instance.new("UIStroke", actionButton)
+uiStrokeTool.Color = Color3.fromRGB(255, 255, 255)
+uiStrokeTool.Thickness = 3
+uiStrokeTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+uiStrokeTool.LineJoinMode = Enum.LineJoinMode.Miter
+
+local uiCornerTool = Instance.new("UICorner", actionButton)
+uiCornerTool.CornerRadius = UDim.new(0, 2)
+
+-- Adapter de Registro
+_G.ScriptAdapter = _G.ScriptAdapter or {}
+_G.ScriptAdapter.Queue = _G.ScriptAdapter.Queue or {}
+
+local toolData = {
+    Id = "CollectorProp_Tool",
+    ButtonUI = actionButton,
+    OnEquip = function()
+        toolEquipped = true
+        actionButton.BackgroundTransparency = 0.45
+        actionButton.TextTransparency = 0.35
+    end,
+    OnUnequip = function()
+        toolEquipped = false
+        actionButton.BackgroundTransparency = 0
+        actionButton.TextTransparency = 0
+    end
+}
+
+if _G.ScriptAdapter and _G.ScriptAdapter.RegisterTool then
+    _G.ScriptAdapter:RegisterTool(toolData)
+else
+    table.insert(_G.ScriptAdapter.Queue, toolData)
+end
+
+actionButton.MouseButton1Click:Connect(function()
+    toolEquipped = not toolEquipped
+    if toolEquipped then
+        actionButton.BackgroundTransparency = 0.45
+        actionButton.TextTransparency = 0.35
+    else
+        actionButton.BackgroundTransparency = 0
+        actionButton.TextTransparency = 0
+    end
+end)
+
+-- Lógica para Ocultar e Invocar a Tool
+btnToggleTool.MouseButton1Click:Connect(function()
+    actionButton.Visible = not actionButton.Visible
+    if actionButton.Visible then
+        btnToggleTool.Text = "Hide Tool"
+    else
+        btnToggleTool.Text = "Invoke Tool"
+        toolEquipped = false
+        actionButton.BackgroundTransparency = 0
+        actionButton.TextTransparency = 0
+    end
+end)
+
+-- Identificador Preciso de Props
+local function getPropInformation(part)
+    if not part or not part:IsA("BasePart") then return nil, nil end
+
+    local propFolder = Workspace:FindFirstChild("WorkspaceCom") and Workspace.WorkspaceCom:FindFirstChild("001_TrafficCones")
+    local current = part
+    local propInstance = nil
+
+    while current and current ~= Workspace do
+        if current:FindFirstChild("SetCurrentCFrame") or current:FindFirstChild("ChangePropColor") or (propFolder and current.Parent == propFolder) then
+            propInstance = current
+            break
+        end
+        current = current.Parent
+    end
+
+    if propInstance then
+        return propInstance.Name, part
+    end
+
+    return nil, nil
+end
+
+-- Atualização da UI
+local function updateUI()
+    for _, child in ipairs(scrollFrame:GetChildren()) do
+        if child:IsA("TextLabel") then child:Destroy() end
+    end
+    
+    for i, data in ipairs(collectedData) do
+        local row = Instance.new("TextLabel", scrollFrame)
+        row.Size = UDim2.new(0, 930, 0, 16)
+        row.BackgroundTransparency = 1
+        row.Font = Enum.Font.Code
+        row.TextSize = 9
+        row.TextColor3 = Color3.fromRGB(255, 255, 255)
+        row.TextXAlignment = Enum.TextXAlignment.Left
+        row.ZIndex = 13
+        
+        row.Text = string.format("[ PROP %d ]: Name: %s  |  Pos: %.3f, %.3f, %.3f  |  Rot: %.2f, %.2f, %.2f  |  Size: %.2f, %.2f, %.2f  |  Color: %d, %d, %d", 
+            i, 
+            data.name,
+            data.pos.X, data.pos.Y, data.pos.Z, 
+            data.rot.X, data.rot.Y, data.rot.Z, 
+            data.size.X, data.size.Y, data.size.Z, 
+            math.floor(data.color.R * 255), math.floor(data.color.G * 255), math.floor(data.color.B * 255)
+        )
+    end
+    scrollFrame.CanvasSize = UDim2.new(0, 950, 0, #collectedData * 18)
+    actionButton.Text = string.format("Data\nCollector\n( %d )", #collectedData)
+end
+
+-- Captura via Raycast
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed or not toolEquipped or not actionButton.Visible then return end
+    
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local pos = input.Position
+        local unitRay = camera:ScreenPointToRay(pos.X, pos.Y)
+        local raycastParams = RaycastParams.new()
+        
+        local ignoreList = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Character then table.insert(ignoreList, p.Character) end
+        end
+        
+        raycastParams.FilterDescendantsInstances = ignoreList
+        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        
+        local raycastResult = Workspace:Raycast(unitRay.Origin, unitRay.Direction * 5000, raycastParams)
+        if raycastResult and raycastResult.Instance then
+            local target = raycastResult.Instance
+            local propName, targetPart = getPropInformation(target)
+            
+            if propName and targetPart then
+                if selectedInstances[targetPart] then
+                    return
+                end
+                
+                selectedInstances[targetPart] = true
+                
+                local rx, ry, rz = targetPart.CFrame:ToOrientation()
+                
+                table.insert(collectedData, {
+                    name = propName,
+                    pos = targetPart.Position,
+                    rot = Vector3.new(math.deg(rx), math.deg(ry), math.deg(rz)),
+                    size = targetPart.Size,
+                    color = targetPart.Color
+                })
+                updateUI()
+            end
+        end
+    end
+end)
+
+-- Botões do Rodapé
+btnClear.MouseButton1Click:Connect(function()
+    collectedData = {}
+    selectedInstances = {}
+    updateUI()
+end)
+
+btnCopy.MouseButton1Click:Connect(function()
+    local output = "local EstrelaLayout = {\n"
+    for i, d in ipairs(collectedData) do
+        output = output .. string.format(
+            "    [%d] = {Name = \"%s\", Pos = Vector3.new(%.3f, %.3f, %.3f), Rot = Vector3.new(%.2f, %.2f, %.2f), Size = Vector3.new(%.2f, %.2f, %.2f), Color = Color3.new(%.3f, %.3f, %.3f)},\n",
+            i, d.name, d.pos.X, d.pos.Y, d.pos.Z, d.rot.X, d.rot.Y, d.rot.Z, d.size.X, d.size.Y, d.size.Z, d.color.R, d.color.G, d.color.B
+        )
+    end
+    output = output .. "}"
+    
+    if setclipboard then
+        setclipboard(output)
+        btnCopy.Text = "COPIED!"
+    else
+        print(output)
+        btnCopy.Text = "PRINTED F9!"
+    end
+    task.wait(1.2)
+    btnCopy.Text = "Copy data"
+end)
+
+-- Botão Flutuante (Toggle/Fechar UI)
+floatingBtn.MouseButton1Click:Connect(function()
+    local currentTime = tick()
+    if currentTime - clickTimer < 0.3 then
+        screenGui:Destroy()
+    else
+        clickTimer = currentTime
+        task.delay(0.32, function()
+            if clickTimer == currentTime then
+                mainFrame.Visible = not mainFrame.Visible
+            end
+        end)
+    end
+end)
