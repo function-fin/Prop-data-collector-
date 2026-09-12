@@ -12,8 +12,10 @@ local assetIdSolTop = "rbxassetid://107617915493772"
 local assetIdFundo = "rbxassetid://114065081553101"
 local collectedData = {}
 local selectedInstances = {}
+local torsoCFrame = nil
 local clickTimer = 0
 local toolEquipped = false
+local pendingPropData = nil
 
 -- UI Principal
 local screenGui = Instance.new("ScreenGui")
@@ -53,7 +55,7 @@ local function makeDraggable(guiObject)
     end)
 end
 
--- Botão Flutuante Superior (65x65)
+-- Botão Flutuante Superior
 local floatingBtn = Instance.new("ImageButton", screenGui)
 floatingBtn.Size = UDim2.new(0, 65, 0, 65)
 floatingBtn.Position = UDim2.new(0.03, 0, 0.25, 0)
@@ -62,13 +64,14 @@ floatingBtn.BackgroundTransparency = 1
 floatingBtn.ZIndex = 5
 makeDraggable(floatingBtn)
 
--- Janela Principal Compacta (420x310)
+-- Janela Principal
 local mainFrame = Instance.new("Frame", screenGui)
-mainFrame.Size = UDim2.new(0, 420, 0, 310)
-mainFrame.Position = UDim2.new(0.5, -210, 0.5, -155)
+mainFrame.Size = UDim2.new(0, 440, 0, 310)
+mainFrame.Position = UDim2.new(0.5, -220, 0.5, -155)
 mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 mainFrame.BorderSizePixel = 0
 mainFrame.Visible = false
+mainFrame.ClipsDescendants = true -- Impede estouro visual da janela principal
 mainFrame.ZIndex = 10
 makeDraggable(mainFrame)
 
@@ -77,7 +80,7 @@ strokeMain.Color = Color3.fromRGB(255, 255, 255)
 strokeMain.Thickness = 2
 strokeMain.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Fundo da Estrela Diminuído e Centralizado
+-- Fundo da Estrela
 local fundoEstrela = Instance.new("ImageLabel", mainFrame)
 fundoEstrela.Size = UDim2.new(0, 160, 0, 160)
 fundoEstrela.Position = UDim2.new(0.5, -80, 0.5, -80)
@@ -128,7 +131,6 @@ subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
 subtitle.TextXAlignment = Enum.TextXAlignment.Left
 subtitle.ZIndex = 12
 
--- Botão no Header: Hide Tool / Invoke Tool
 local btnToggleTool = Instance.new("TextButton", header)
 btnToggleTool.Size = UDim2.new(0, 110, 0, 26)
 btnToggleTool.Position = UDim2.new(1, -120, 0, 7)
@@ -144,40 +146,34 @@ strokeToggleTool.Color = Color3.fromRGB(255, 255, 255)
 strokeToggleTool.Thickness = 1.5
 strokeToggleTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Divisores
-local divisor1 = Instance.new("Frame", mainFrame)
-divisor1.Size = UDim2.new(1, -20, 0, 1.5)
-divisor1.Position = UDim2.new(0, 10, 0, 40)
-divisor1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-divisor1.BorderSizePixel = 0
-divisor1.ZIndex = 12
-
--- Área dos Props
+-- Area Scroll
 local scrollFrame = Instance.new("ScrollingFrame", mainFrame)
-scrollFrame.Size = UDim2.new(1, -20, 0, 210)
+scrollFrame.Size = UDim2.new(1, -20, 0, 205)
 scrollFrame.Position = UDim2.new(0, 10, 0, 45)
 scrollFrame.BackgroundTransparency = 1
+scrollFrame.ClipsDescendants = true -- Corta qualquer elemento filho
 scrollFrame.ScrollBarThickness = 5
 scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
 scrollFrame.ScrollingDirection = Enum.ScrollingDirection.XY
-scrollFrame.CanvasSize = UDim2.new(0, 950, 0, 0)
+scrollFrame.CanvasSize = UDim2.new(0, 1050, 0, 0)
 scrollFrame.ZIndex = 12
 
 local listLayout = Instance.new("UIListLayout", scrollFrame)
 listLayout.Padding = UDim.new(0, 3)
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-local divisor2 = Instance.new("Frame", mainFrame)
-divisor2.Size = UDim2.new(1, -20, 0, 1.5)
-divisor2.Position = UDim2.new(0, 10, 0, 260)
-divisor2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-divisor2.BorderSizePixel = 0
-divisor2.ZIndex = 12
+-- Linha Divisória Inferior
+local footerLine = Instance.new("Frame", mainFrame)
+footerLine.Size = UDim2.new(1, -20, 0, 1.5)
+footerLine.Position = UDim2.new(0, 10, 0, 255)
+footerLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+footerLine.BorderSizePixel = 0
+footerLine.ZIndex = 12
 
 -- Rodapé
 local footer = Instance.new("Frame", mainFrame)
-footer.Size = UDim2.new(1, 0, 0, 45)
-footer.Position = UDim2.new(0, 0, 0, 262)
+footer.Size = UDim2.new(1, 0, 0, 50)
+footer.Position = UDim2.new(0, 0, 0, 258)
 footer.BackgroundTransparency = 1
 footer.ZIndex = 12
 
@@ -211,13 +207,12 @@ strokeCopy.Color = Color3.fromRGB(255, 255, 255)
 strokeCopy.Thickness = 1.5
 strokeCopy.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Botão Flutuante Ferramenta (Inicia oculto)
+-- Botão Flutuante Ferramenta
 local actionButton = Instance.new("TextButton", screenGui)
 actionButton.Name = "CollectorToolButton"
 actionButton.Size = UDim2.new(0, 65, 0, 65)
 actionButton.Position = UDim2.new(0.5, -32, 0.78, 0)
 actionButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-actionButton.BackgroundTransparency = 0
 actionButton.BorderSizePixel = 0
 actionButton.Text = "Data\nCollector\n( 0 )"
 actionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -227,20 +222,73 @@ actionButton.TextWrapped = true
 actionButton.Visible = false
 actionButton.ZIndex = 1
 
-local uiPadding = Instance.new("UIPadding", actionButton)
-uiPadding.PaddingTop = UDim.new(0.08, 0)
-uiPadding.PaddingBottom = UDim.new(0.08, 0)
-uiPadding.PaddingLeft = UDim.new(0.05, 0)
-uiPadding.PaddingRight = UDim.new(0.05, 0)
-
 local uiStrokeTool = Instance.new("UIStroke", actionButton)
 uiStrokeTool.Color = Color3.fromRGB(255, 255, 255)
 uiStrokeTool.Thickness = 3
 uiStrokeTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-uiStrokeTool.LineJoinMode = Enum.LineJoinMode.Miter
 
 local uiCornerTool = Instance.new("UICorner", actionButton)
 uiCornerTool.CornerRadius = UDim.new(0, 2)
+
+-- Mini Interface Arrastável (Nomeação do Prop)
+local nameModal = Instance.new("Frame", screenGui)
+nameModal.Size = UDim2.new(0, 260, 0, 120)
+nameModal.Position = UDim2.new(0.5, -130, 0.4, -60)
+nameModal.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+nameModal.BorderSizePixel = 0
+nameModal.Visible = false
+nameModal.ClipsDescendants = true
+nameModal.ZIndex = 30
+makeDraggable(nameModal)
+
+local strokeModal = Instance.new("UIStroke", nameModal)
+strokeModal.Color = Color3.fromRGB(255, 255, 255)
+strokeModal.Thickness = 2
+strokeModal.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local modalTitle = Instance.new("TextLabel", nameModal)
+modalTitle.Size = UDim2.new(1, 0, 0, 25)
+modalTitle.Position = UDim2.new(0, 0, 0, 8)
+modalTitle.BackgroundTransparency = 1
+modalTitle.Text = "NAME PROP"
+modalTitle.Font = Enum.Font.Arcade
+modalTitle.TextSize = 14
+modalTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+modalTitle.ZIndex = 31
+
+local nameInput = Instance.new("TextBox", nameModal)
+nameInput.Size = UDim2.new(0, 220, 0, 30)
+nameInput.Position = UDim2.new(0.5, -110, 0, 38)
+nameInput.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+nameInput.Text = ""
+nameInput.PlaceholderText = "Type prop name..."
+nameInput.PlaceholderColor3 = Color3.fromRGB(130, 130, 130)
+nameInput.Font = Enum.Font.Code
+nameInput.TextSize = 12
+nameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+nameInput.ClearTextOnFocus = false
+nameInput.ClipsDescendants = true
+nameInput.ZIndex = 31
+
+local strokeInput = Instance.new("UIStroke", nameInput)
+strokeInput.Color = Color3.fromRGB(255, 255, 255)
+strokeInput.Thickness = 1
+strokeInput.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local btnConfirmName = Instance.new("TextButton", nameModal)
+btnConfirmName.Size = UDim2.new(0, 100, 0, 24)
+btnConfirmName.Position = UDim2.new(0.5, -50, 0, 78)
+btnConfirmName.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+btnConfirmName.Text = "Confirm"
+btnConfirmName.Font = Enum.Font.Arcade
+btnConfirmName.TextSize = 12
+btnConfirmName.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnConfirmName.ZIndex = 31
+
+local strokeConfirm = Instance.new("UIStroke", btnConfirmName)
+strokeConfirm.Color = Color3.fromRGB(255, 255, 255)
+strokeConfirm.Thickness = 1
+strokeConfirm.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 -- Adapter de Registro
 _G.ScriptAdapter = _G.ScriptAdapter or {}
@@ -269,29 +317,17 @@ end
 
 actionButton.MouseButton1Click:Connect(function()
     toolEquipped = not toolEquipped
-    if toolEquipped then
-        actionButton.BackgroundTransparency = 0.45
-        actionButton.TextTransparency = 0.35
-    else
-        actionButton.BackgroundTransparency = 0
-        actionButton.TextTransparency = 0
-    end
+    actionButton.BackgroundTransparency = toolEquipped and 0.45 or 0
+    actionButton.TextTransparency = toolEquipped and 0.35 or 0
 end)
 
--- Lógica para Ocultar e Invocar a Tool
 btnToggleTool.MouseButton1Click:Connect(function()
     actionButton.Visible = not actionButton.Visible
-    if actionButton.Visible then
-        btnToggleTool.Text = "Hide Tool"
-    else
-        btnToggleTool.Text = "Invoke Tool"
-        toolEquipped = false
-        actionButton.BackgroundTransparency = 0
-        actionButton.TextTransparency = 0
-    end
+    btnToggleTool.Text = actionButton.Visible and "Hide Tool" or "Invoke Tool"
+    if not actionButton.Visible then toolEquipped = false end
 end)
 
--- Identificador Preciso de Props
+-- Identificador de Props
 local function getPropInformation(part)
     if not part or not part:IsA("BasePart") then return nil, nil end
 
@@ -314,96 +350,164 @@ local function getPropInformation(part)
     return nil, nil
 end
 
--- Atualização da UI
+-- Atualização da UI (TextBox travado na largura para evitar estouro no mobile)
 local function updateUI()
     for _, child in ipairs(scrollFrame:GetChildren()) do
-        if child:IsA("TextLabel") then child:Destroy() end
+        if child:IsA("TextBox") then child:Destroy() end
     end
-    
+
     for i, data in ipairs(collectedData) do
-        local row = Instance.new("TextLabel", scrollFrame)
-        row.Size = UDim2.new(0, 930, 0, 16)
-        row.BackgroundTransparency = 1
-        row.Font = Enum.Font.Code
-        row.TextSize = 9
-        row.TextColor3 = Color3.fromRGB(255, 255, 255)
-        row.TextXAlignment = Enum.TextXAlignment.Left
-        row.ZIndex = 13
-        
-        row.Text = string.format("[ PROP %d ]: Name: %s  |  Pos: %.3f, %.3f, %.3f  |  Rot: %.2f, %.2f, %.2f  |  Size: %.2f, %.2f, %.2f  |  Color: %d, %d, %d", 
+        local rowBox = Instance.new("TextBox", scrollFrame)
+        rowBox.Size = UDim2.new(1, 0, 0, 18) -- Usa 100% da largura visível do scroll sem estourar
+        rowBox.BackgroundTransparency = 1
+        rowBox.ClipsDescendants = true
+        rowBox.Font = Enum.Font.Code
+        rowBox.TextSize = 9
+        rowBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+        rowBox.TextXAlignment = Enum.TextXAlignment.Left
+        rowBox.ClearTextOnFocus = false
+        rowBox.ZIndex = 13
+
+        rowBox.Text = string.format("[ PROP %d ]: Name: %s | Pos: %.3f, %.3f, %.3f | Rot: %.2f, %.2f, %.2f | Size: %.2f, %.2f, %.2f | Color: %.1f, %.1f, %.1f", 
             i, 
             data.name,
             data.pos.X, data.pos.Y, data.pos.Z, 
             data.rot.X, data.rot.Y, data.rot.Z, 
             data.size.X, data.size.Y, data.size.Z, 
-            math.floor(data.color.R * 255), math.floor(data.color.G * 255), math.floor(data.color.B * 255)
+            data.color.R, data.color.G, data.color.B
         )
+
+        rowBox.FocusLost:Connect(function()
+            local extractedName = string.match(rowBox.Text, "%]: Name: (.-) %|")
+            if extractedName then
+                data.name = extractedName
+            end
+        end)
     end
-    scrollFrame.CanvasSize = UDim2.new(0, 950, 0, #collectedData * 18)
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, #collectedData * 20)
     actionButton.Text = string.format("Data\nCollector\n( %d )", #collectedData)
 end
 
--- Captura via Raycast
+-- Processa confirmação da nomeação
+local function confirmPropName()
+    if pendingPropData then
+        local customName = nameInput.Text
+        if customName:gsub("%s+", "") ~= "" then
+            pendingPropData.name = customName
+        end
+
+        table.insert(collectedData, pendingPropData)
+        updateUI()
+        pendingPropData = nil
+    end
+    nameModal.Visible = false
+    nameInput.Text = ""
+end
+
+btnConfirmName.MouseButton1Click:Connect(confirmPropName)
+nameInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then confirmPropName() end
+end)
+
+-- Captura via Raycast & Lógica de Clique Fora
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed or not toolEquipped or not actionButton.Visible then return end
-    
+
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         local pos = input.Position
+
+        if nameModal.Visible then
+            local mPos = nameModal.AbsolutePosition
+            local mSize = nameModal.AbsoluteSize
+            if pos.X < mPos.X or pos.X > mPos.X + mSize.X or pos.Y < mPos.Y or pos.Y > mPos.Y + mSize.Y then
+                nameModal.Visible = false
+                pendingPropData = nil
+            end
+            return
+        end
+
+        if mainFrame.Visible then
+            local fPos = mainFrame.AbsolutePosition
+            local fSize = mainFrame.AbsoluteSize
+            local btnPos = floatingBtn.AbsolutePosition
+            local btnSize = floatingBtn.AbsoluteSize
+
+            local insideMain = (pos.X >= fPos.X and pos.X <= fPos.X + fSize.X and pos.Y >= fPos.Y and pos.Y <= fPos.Y + fSize.Y)
+            local insideBtn = (pos.X >= btnPos.X and pos.X <= btnPos.X + btnSize.X and pos.Y >= btnPos.Y and pos.Y <= btnPos.Y + btnSize.Y)
+
+            if not insideMain and not insideBtn then
+                mainFrame.Visible = false
+            end
+        end
+
         local unitRay = camera:ScreenPointToRay(pos.X, pos.Y)
         local raycastParams = RaycastParams.new()
-        
+
         local ignoreList = {}
         for _, p in ipairs(Players:GetPlayers()) do
             if p.Character then table.insert(ignoreList, p.Character) end
         end
-        
+
         raycastParams.FilterDescendantsInstances = ignoreList
         raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-        
+
         local raycastResult = Workspace:Raycast(unitRay.Origin, unitRay.Direction * 5000, raycastParams)
         if raycastResult and raycastResult.Instance then
             local target = raycastResult.Instance
             local propName, targetPart = getPropInformation(target)
-            
-            if propName and targetPart then
-                if selectedInstances[targetPart] then
-                    return
-                end
-                
+
+            if propName and targetPart and not selectedInstances[targetPart] then
                 selectedInstances[targetPart] = true
-                
-                local rx, ry, rz = targetPart.CFrame:ToOrientation()
-                
-                table.insert(collectedData, {
+
+                if #collectedData == 0 then
+                    torsoCFrame = targetPart.CFrame
+                end
+
+                local relativeCF = torsoCFrame:ToObjectSpace(targetPart.CFrame)
+                local rx, ry, rz = relativeCF:ToOrientation()
+
+                pendingPropData = {
                     name = propName,
-                    pos = targetPart.Position,
+                    pos = relativeCF.Position,
                     rot = Vector3.new(math.deg(rx), math.deg(ry), math.deg(rz)),
+                    cfComponents = {relativeCF:GetComponents()},
                     size = targetPart.Size,
                     color = targetPart.Color
-                })
-                updateUI()
+                }
+
+                nameInput.Text = propName
+                nameModal.Visible = true
+                nameInput:CaptureFocus()
             end
         end
     end
 end)
 
--- Botões do Rodapé
+-- Limpar dados
 btnClear.MouseButton1Click:Connect(function()
     collectedData = {}
     selectedInstances = {}
+    torsoCFrame = nil
     updateUI()
 end)
 
+-- Copiar dados
 btnCopy.MouseButton1Click:Connect(function()
     local output = "local EstrelaLayout = {\n"
     for i, d in ipairs(collectedData) do
+        local c = d.cfComponents
         output = output .. string.format(
-            "    [%d] = {Name = \"%s\", Pos = Vector3.new(%.3f, %.3f, %.3f), Rot = Vector3.new(%.2f, %.2f, %.2f), Size = Vector3.new(%.2f, %.2f, %.2f), Color = Color3.new(%.3f, %.3f, %.3f)},\n",
-            i, d.name, d.pos.X, d.pos.Y, d.pos.Z, d.rot.X, d.rot.Y, d.rot.Z, d.size.X, d.size.Y, d.size.Z, d.color.R, d.color.G, d.color.B
+            "    [%d] = {Name = \"%s\", Pos = Vector3.new(%.3f, %.3f, %.3f), Rot = Vector3.new(%.2f, %.2f, %.2f), CFrameData = CFrame.new(%.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f), Size = Vector3.new(%.2f, %.2f, %.2f), Color = Color3.new(%.3f, %.3f, %.3f)},\n",
+            i, d.name, 
+            d.pos.X, d.pos.Y, d.pos.Z, 
+            d.rot.X, d.rot.Y, d.rot.Z, 
+            c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12],
+            d.size.X, d.size.Y, d.size.Z, 
+            d.color.R, d.color.G, d.color.B
         )
     end
     output = output .. "}"
-    
+
     if setclipboard then
         setclipboard(output)
         btnCopy.Text = "COPIED!"
@@ -415,7 +519,7 @@ btnCopy.MouseButton1Click:Connect(function()
     btnCopy.Text = "Copy data"
 end)
 
--- Botão Flutuante (Toggle/Fechar UI)
+-- Botão Flutuante (Toggle UI)
 floatingBtn.MouseButton1Click:Connect(function()
     local currentTime = tick()
     if currentTime - clickTimer < 0.3 then
