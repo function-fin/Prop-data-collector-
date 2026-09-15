@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -10,16 +11,42 @@ local camera = Workspace.CurrentCamera
 local assetIdBotao = "rbxassetid://95142798137523"
 local assetIdSolTop = "rbxassetid://107617915493772"
 local assetIdFundo = "rbxassetid://114065081553101"
+
 local collectedData = {}
 local selectedInstances = {}
-local torsoCFrame = nil
 local clickTimer = 0
 local toolEquipped = false
 local pendingPropData = nil
 
+-- Tabela Global para Interceptação RSPY
+getgenv().LastRspyPropArgs = getgenv().LastRspyPropArgs or {}
+
+-- Core Engine RSPY (Hook em __namecall)
+if not getgenv().CollectorRspyHooked then
+    local OldNamecall
+    OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if not checkcaller() and (method == "FireServer" or method == "fireServer") then
+            if self.Name == "1Clea1rTool1s" or (self.Parent and self.Parent.Name == "RE") then
+                local args = {...}
+                if args[1] == "RequestingPropName" or typeof(args[2]) == "string" then
+                    getgenv().LastRspyPropArgs = {
+                        Action = tostring(args[1] or ""),
+                        PropName = tostring(args[2] or ""),
+                        SubName = tostring(args[3] or ""),
+                        FullRemotePath = self:GetFullName()
+                    }
+                end
+            end
+        end
+        return OldNamecall(self, ...)
+    end))
+    getgenv().CollectorRspyHooked = true
+end
+
 -- UI Principal
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "PropsDataCollectorSPWN"
+screenGui.Name = "PropsDataCollectorSPWN_RSPY"
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 10
 
@@ -71,7 +98,7 @@ mainFrame.Position = UDim2.new(0.5, -220, 0.5, -155)
 mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 mainFrame.BorderSizePixel = 0
 mainFrame.Visible = false
-mainFrame.ClipsDescendants = true -- Impede estouro visual da janela principal
+mainFrame.ClipsDescendants = true
 mainFrame.ZIndex = 10
 makeDraggable(mainFrame)
 
@@ -124,7 +151,7 @@ local subtitle = Instance.new("TextLabel", header)
 subtitle.Size = UDim2.new(0, 220, 0, 14)
 subtitle.Position = UDim2.new(0, 48, 0, 22)
 subtitle.BackgroundTransparency = 1
-subtitle.Text = "Project SPWN 0.0.0.0.1"
+subtitle.Text = "Project SPWN + RSPY Engine"
 subtitle.Font = Enum.Font.Arcade
 subtitle.TextSize = 10
 subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -146,21 +173,26 @@ strokeToggleTool.Color = Color3.fromRGB(255, 255, 255)
 strokeToggleTool.Thickness = 1.5
 strokeToggleTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Area Scroll
+-- Area Scroll (CORRIGIDA)
 local scrollFrame = Instance.new("ScrollingFrame", mainFrame)
 scrollFrame.Size = UDim2.new(1, -20, 0, 205)
 scrollFrame.Position = UDim2.new(0, 10, 0, 45)
 scrollFrame.BackgroundTransparency = 1
-scrollFrame.ClipsDescendants = true -- Corta qualquer elemento filho
+scrollFrame.ClipsDescendants = true
 scrollFrame.ScrollBarThickness = 5
 scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
 scrollFrame.ScrollingDirection = Enum.ScrollingDirection.XY
-scrollFrame.CanvasSize = UDim2.new(0, 1050, 0, 0)
+scrollFrame.CanvasSize = UDim2.new(0, 1200, 0, 0)
 scrollFrame.ZIndex = 12
 
 local listLayout = Instance.new("UIListLayout", scrollFrame)
 listLayout.Padding = UDim.new(0, 3)
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- CORREÇÃO DO SCROLL: Expansão dinâmica do Canvas sem quebrar a rolagem
+listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    scrollFrame.CanvasSize = UDim2.new(0, 1200, 0, listLayout.AbsoluteContentSize.Y + 10)
+end)
 
 -- Linha Divisória Inferior
 local footerLine = Instance.new("Frame", mainFrame)
@@ -226,9 +258,6 @@ local uiStrokeTool = Instance.new("UIStroke", actionButton)
 uiStrokeTool.Color = Color3.fromRGB(255, 255, 255)
 uiStrokeTool.Thickness = 3
 uiStrokeTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
-local uiCornerTool = Instance.new("UICorner", actionButton)
-uiCornerTool.CornerRadius = UDim.new(0, 2)
 
 -- Mini Interface Arrastável (Nomeação do Prop)
 local nameModal = Instance.new("Frame", screenGui)
@@ -350,7 +379,7 @@ local function getPropInformation(part)
     return nil, nil
 end
 
--- Atualização da UI (TextBox travado na largura para evitar estouro no mobile)
+-- Atualização da UI
 local function updateUI()
     for _, child in ipairs(scrollFrame:GetChildren()) do
         if child:IsA("TextBox") then child:Destroy() end
@@ -358,7 +387,7 @@ local function updateUI()
 
     for i, data in ipairs(collectedData) do
         local rowBox = Instance.new("TextBox", scrollFrame)
-        rowBox.Size = UDim2.new(1, 0, 0, 18) -- Usa 100% da largura visível do scroll sem estourar
+        rowBox.Size = UDim2.new(1, 0, 0, 18)
         rowBox.BackgroundTransparency = 1
         rowBox.ClipsDescendants = true
         rowBox.Font = Enum.Font.Code
@@ -368,13 +397,13 @@ local function updateUI()
         rowBox.ClearTextOnFocus = false
         rowBox.ZIndex = 13
 
-        rowBox.Text = string.format("[ PROP %d ]: Name: %s | Pos: %.3f, %.3f, %.3f | Rot: %.2f, %.2f, %.2f | Size: %.2f, %.2f, %.2f | Color: %.1f, %.1f, %.1f", 
+        rowBox.Text = string.format("[ PROP %d ]: Name: %s | RSPY: %s [%s] | Pos: %.3f, %.3f, %.3f | Rot: %.2f, %.2f, %.2f", 
             i, 
             data.name,
+            data.rspyPropName ~= "" and data.rspyPropName or "N/A",
+            data.rspySubName ~= "" and data.rspySubName or "N/A",
             data.pos.X, data.pos.Y, data.pos.Z, 
-            data.rot.X, data.rot.Y, data.rot.Z, 
-            data.size.X, data.size.Y, data.size.Z, 
-            data.color.R, data.color.G, data.color.B
+            data.rot.X, data.rot.Y, data.rot.Z
         )
 
         rowBox.FocusLost:Connect(function()
@@ -384,7 +413,6 @@ local function updateUI()
             end
         end)
     end
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, #collectedData * 20)
     actionButton.Text = string.format("Data\nCollector\n( %d )", #collectedData)
 end
 
@@ -409,7 +437,7 @@ nameInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then confirmPropName() end
 end)
 
--- Captura via Raycast & Lógica de Clique Fora
+-- Captura via Raycast & Leitura de Dados RSPY
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed or not toolEquipped or not actionButton.Visible then return end
 
@@ -459,18 +487,23 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             if propName and targetPart and not selectedInstances[targetPart] then
                 selectedInstances[targetPart] = true
 
-                if #collectedData == 0 then
-                    torsoCFrame = targetPart.CFrame
-                end
+                -- Tenta disparar o Remote para recuperar os argumentos via RSPY
+                pcall(function()
+                    ReplicatedStorage.RE["1Clea1rTool1s"]:FireServer("RequestingPropName", propName)
+                end)
 
-                local relativeCF = torsoCFrame:ToObjectSpace(targetPart.CFrame)
-                local rx, ry, rz = relativeCF:ToOrientation()
+                task.wait(0.05) -- Pequeno delay para aguardar a captura do Hook
+
+                local rspyInfo = getgenv().LastRspyPropArgs or {}
 
                 pendingPropData = {
                     name = propName,
-                    pos = relativeCF.Position,
-                    rot = Vector3.new(math.deg(rx), math.deg(ry), math.deg(rz)),
-                    cfComponents = {relativeCF:GetComponents()},
+                    rspyPropName = rspyInfo.PropName or "",
+                    rspySubName = rspyInfo.SubName or "",
+                    rspyAction = rspyInfo.Action or "",
+                    pos = targetPart.Position,
+                    rot = Vector3.new(targetPart.Orientation.X, targetPart.Orientation.Y, targetPart.Orientation.Z),
+                    cfComponents = {targetPart.CFrame:GetComponents()},
                     size = targetPart.Size,
                     color = targetPart.Color
                 }
@@ -487,7 +520,7 @@ end)
 btnClear.MouseButton1Click:Connect(function()
     collectedData = {}
     selectedInstances = {}
-    torsoCFrame = nil
+    getgenv().LastRspyPropArgs = {}
     updateUI()
 end)
 
@@ -497,8 +530,8 @@ btnCopy.MouseButton1Click:Connect(function()
     for i, d in ipairs(collectedData) do
         local c = d.cfComponents
         output = output .. string.format(
-            "    [%d] = {Name = \"%s\", Pos = Vector3.new(%.3f, %.3f, %.3f), Rot = Vector3.new(%.2f, %.2f, %.2f), CFrameData = CFrame.new(%.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f), Size = Vector3.new(%.2f, %.2f, %.2f), Color = Color3.new(%.3f, %.3f, %.3f)},\n",
-            i, d.name, 
+            "    [%d] = {Name = \"%s\", RSPY_Prop = \"%s\", RSPY_Sub = \"%s\", Pos = Vector3.new(%.3f, %.3f, %.3f), Rot = Vector3.new(%.2f, %.2f, %.2f), CFrameData = CFrame.new(%.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f), Size = Vector3.new(%.2f, %.2f, %.2f), Color = Color3.new(%.3f, %.3f, %.3f)},\n",
+            i, d.name, d.rspyPropName, d.rspySubName,
             d.pos.X, d.pos.Y, d.pos.Z, 
             d.rot.X, d.rot.Y, d.rot.Z, 
             c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12],
