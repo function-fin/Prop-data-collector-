@@ -2,7 +2,6 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -11,42 +10,15 @@ local camera = Workspace.CurrentCamera
 local assetIdBotao = "rbxassetid://95142798137523"
 local assetIdSolTop = "rbxassetid://107617915493772"
 local assetIdFundo = "rbxassetid://114065081553101"
-
 local collectedData = {}
 local selectedInstances = {}
 local clickTimer = 0
 local toolEquipped = false
 local pendingPropData = nil
 
--- Tabela Global para Interceptação RSPY
-getgenv().LastRspyPropArgs = getgenv().LastRspyPropArgs or {}
-
--- Core Engine RSPY (Hook em __namecall)
-if not getgenv().CollectorRspyHooked then
-    local OldNamecall
-    OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if not checkcaller() and (method == "FireServer" or method == "fireServer") then
-            if self.Name == "1Clea1rTool1s" or (self.Parent and self.Parent.Name == "RE") then
-                local args = {...}
-                if args[1] == "RequestingPropName" or typeof(args[2]) == "string" then
-                    getgenv().LastRspyPropArgs = {
-                        Action = tostring(args[1] or ""),
-                        PropName = tostring(args[2] or ""),
-                        SubName = tostring(args[3] or ""),
-                        FullRemotePath = self:GetFullName()
-                    }
-                end
-            end
-        end
-        return OldNamecall(self, ...)
-    end))
-    getgenv().CollectorRspyHooked = true
-end
-
 -- UI Principal
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "PropsDataCollectorSPWN_RSPY"
+screenGui.Name = "PropsDataCollectorSPWN"
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 10
 
@@ -151,7 +123,7 @@ local subtitle = Instance.new("TextLabel", header)
 subtitle.Size = UDim2.new(0, 220, 0, 14)
 subtitle.Position = UDim2.new(0, 48, 0, 22)
 subtitle.BackgroundTransparency = 1
-subtitle.Text = "Project SPWN + RSPY Engine"
+subtitle.Text = "Project SPWN 0.0.0.0.1"
 subtitle.Font = Enum.Font.Arcade
 subtitle.TextSize = 10
 subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -173,13 +145,13 @@ strokeToggleTool.Color = Color3.fromRGB(255, 255, 255)
 strokeToggleTool.Thickness = 1.5
 strokeToggleTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Area Scroll (CORRIGIDA)
+-- Area Scroll
 local scrollFrame = Instance.new("ScrollingFrame", mainFrame)
 scrollFrame.Size = UDim2.new(1, -20, 0, 205)
 scrollFrame.Position = UDim2.new(0, 10, 0, 45)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.ClipsDescendants = true
-scrollFrame.ScrollBarThickness = 5
+scrollFrame.ScrollBarThickness = 8
 scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
 scrollFrame.ScrollingDirection = Enum.ScrollingDirection.XY
 scrollFrame.CanvasSize = UDim2.new(0, 1200, 0, 0)
@@ -188,11 +160,6 @@ scrollFrame.ZIndex = 12
 local listLayout = Instance.new("UIListLayout", scrollFrame)
 listLayout.Padding = UDim.new(0, 3)
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
--- CORREÇÃO DO SCROLL: Expansão dinâmica do Canvas sem quebrar a rolagem
-listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    scrollFrame.CanvasSize = UDim2.new(0, 1200, 0, listLayout.AbsoluteContentSize.Y + 10)
-end)
 
 -- Linha Divisória Inferior
 local footerLine = Instance.new("Frame", mainFrame)
@@ -258,6 +225,9 @@ local uiStrokeTool = Instance.new("UIStroke", actionButton)
 uiStrokeTool.Color = Color3.fromRGB(255, 255, 255)
 uiStrokeTool.Thickness = 3
 uiStrokeTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local uiCornerTool = Instance.new("UICorner", actionButton)
+uiCornerTool.CornerRadius = UDim.new(0, 2)
 
 -- Mini Interface Arrastável (Nomeação do Prop)
 local nameModal = Instance.new("Frame", screenGui)
@@ -356,30 +326,26 @@ btnToggleTool.MouseButton1Click:Connect(function()
     if not actionButton.Visible then toolEquipped = false end
 end)
 
--- Identificador de Props
+-- Identificador do Prop direto no momento do clique
 local function getPropInformation(part)
     if not part or not part:IsA("BasePart") then return nil, nil end
 
-    local propFolder = Workspace:FindFirstChild("WorkspaceCom") and Workspace.WorkspaceCom:FindFirstChild("001_TrafficCones")
     local current = part
     local propInstance = nil
 
     while current and current ~= Workspace do
-        if current:FindFirstChild("SetCurrentCFrame") or current:FindFirstChild("ChangePropColor") or (propFolder and current.Parent == propFolder) then
+        if current:FindFirstChild("SetCurrentCFrame") or current:FindFirstChild("ChangePropColor") or current.Parent == Workspace:FindFirstChild("WorkspaceCom") then
             propInstance = current
             break
         end
         current = current.Parent
     end
 
-    if propInstance then
-        return propInstance.Name, part
-    end
-
-    return nil, nil
+    local finalProp = propInstance or part
+    return finalProp.Name, part
 end
 
--- Atualização da UI
+-- Atualização da UI no novo formato solicitado
 local function updateUI()
     for _, child in ipairs(scrollFrame:GetChildren()) do
         if child:IsA("TextBox") then child:Destroy() end
@@ -395,24 +361,46 @@ local function updateUI()
         rowBox.TextColor3 = Color3.fromRGB(255, 255, 255)
         rowBox.TextXAlignment = Enum.TextXAlignment.Left
         rowBox.ClearTextOnFocus = false
+        rowBox.TextEditable = false
+        rowBox.Active = false
         rowBox.ZIndex = 13
 
-        rowBox.Text = string.format("[ PROP %d ]: Name: %s | RSPY: %s [%s] | Pos: %.3f, %.3f, %.3f | Rot: %.2f, %.2f, %.2f", 
+        -- Formato Personalizado: [ PROP X ]: Name: | RelPos: X, Y, Z | Rot: X, Y, Z | Dist: Xs | Name Prop | Color
+        rowBox.Text = string.format("[ PROP %d ]: Name: | RelPos: %.2f, %.2f, %.2f | Rot: %.1f, %.1f, %.1f | Dist: %.1fs | %s | Color: %.2f, %.2f, %.2f", 
             i, 
-            data.name,
-            data.rspyPropName ~= "" and data.rspyPropName or "N/A",
-            data.rspySubName ~= "" and data.rspySubName or "N/A",
             data.pos.X, data.pos.Y, data.pos.Z, 
-            data.rot.X, data.rot.Y, data.rot.Z
+            data.rot.X, data.rot.Y, data.rot.Z,
+            data.distance,
+            data.name,
+            data.color.R, data.color.G, data.color.B
         )
 
-        rowBox.FocusLost:Connect(function()
-            local extractedName = string.match(rowBox.Text, "%]: Name: (.-) %|")
-            if extractedName then
-                data.name = extractedName
+        local holdThread = nil
+        rowBox.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                holdThread = task.delay(2.0, function()
+                    rowBox.Active = true
+                    rowBox.TextEditable = true
+                    rowBox:CaptureFocus()
+                end)
             end
         end)
+
+        rowBox.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if holdThread then
+                    task.cancel(holdThread)
+                    holdThread = nil
+                end
+            end
+        end)
+
+        rowBox.FocusLost:Connect(function()
+            rowBox.TextEditable = false
+            rowBox.Active = false
+        end)
     end
+    scrollFrame.CanvasSize = UDim2.new(0, 1200, 0, #collectedData * 20)
     actionButton.Text = string.format("Data\nCollector\n( %d )", #collectedData)
 end
 
@@ -437,7 +425,7 @@ nameInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then confirmPropName() end
 end)
 
--- Captura via Raycast & Leitura de Dados RSPY
+-- Captura via Raycast
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed or not toolEquipped or not actionButton.Visible then return end
 
@@ -485,32 +473,30 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             local propName, targetPart = getPropInformation(target)
 
             if propName and targetPart and not selectedInstances[targetPart] then
-                selectedInstances[targetPart] = true
+                local character = player.Character
+                local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
-                -- Tenta disparar o Remote para recuperar os argumentos via RSPY
-                pcall(function()
-                    ReplicatedStorage.RE["1Clea1rTool1s"]:FireServer("RequestingPropName", propName)
-                end)
+                if hrp then
+                    selectedInstances[targetPart] = true
 
-                task.wait(0.05) -- Pequeno delay para aguardar a captura do Hook
+                    local relativeCF = hrp.CFrame:ToObjectSpace(targetPart.CFrame)
+                    local rx, ry, rz = relativeCF:ToOrientation()
+                    local distStuds = (targetPart.Position - hrp.Position).Magnitude
 
-                local rspyInfo = getgenv().LastRspyPropArgs or {}
+                    pendingPropData = {
+                        name = propName,
+                        pos = relativeCF.Position,
+                        rot = Vector3.new(math.deg(rx), math.deg(ry), math.deg(rz)),
+                        distance = distStuds,
+                        cfComponents = {relativeCF:GetComponents()},
+                        size = targetPart.Size,
+                        color = targetPart.Color
+                    }
 
-                pendingPropData = {
-                    name = propName,
-                    rspyPropName = rspyInfo.PropName or "",
-                    rspySubName = rspyInfo.SubName or "",
-                    rspyAction = rspyInfo.Action or "",
-                    pos = targetPart.Position,
-                    rot = Vector3.new(targetPart.Orientation.X, targetPart.Orientation.Y, targetPart.Orientation.Z),
-                    cfComponents = {targetPart.CFrame:GetComponents()},
-                    size = targetPart.Size,
-                    color = targetPart.Color
-                }
-
-                nameInput.Text = propName
-                nameModal.Visible = true
-                nameInput:CaptureFocus()
+                    nameInput.Text = propName
+                    nameModal.Visible = true
+                    nameInput:CaptureFocus()
+                end
             end
         end
     end
@@ -520,7 +506,6 @@ end)
 btnClear.MouseButton1Click:Connect(function()
     collectedData = {}
     selectedInstances = {}
-    getgenv().LastRspyPropArgs = {}
     updateUI()
 end)
 
@@ -530,8 +515,8 @@ btnCopy.MouseButton1Click:Connect(function()
     for i, d in ipairs(collectedData) do
         local c = d.cfComponents
         output = output .. string.format(
-            "    [%d] = {Name = \"%s\", RSPY_Prop = \"%s\", RSPY_Sub = \"%s\", Pos = Vector3.new(%.3f, %.3f, %.3f), Rot = Vector3.new(%.2f, %.2f, %.2f), CFrameData = CFrame.new(%.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f), Size = Vector3.new(%.2f, %.2f, %.2f), Color = Color3.new(%.3f, %.3f, %.3f)},\n",
-            i, d.name, d.rspyPropName, d.rspySubName,
+            "    [%d] = {Name = \"%s\", Distance = %.2f, Pos = Vector3.new(%.3f, %.3f, %.3f), Rot = Vector3.new(%.2f, %.2f, %.2f), CFrameToPlayer = CFrame.new(%.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f), Size = Vector3.new(%.2f, %.2f, %.2f), Color = Color3.new(%.3f, %.3f, %.3f)},\n",
+            i, d.name, d.distance,
             d.pos.X, d.pos.Y, d.pos.Z, 
             d.rot.X, d.rot.Y, d.rot.Z, 
             c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12],
