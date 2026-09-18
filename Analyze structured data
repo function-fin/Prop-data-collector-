@@ -11,8 +11,15 @@ local assetIdBotao = "rbxassetid://95142798137523"
 local assetIdSolTop = "rbxassetid://107617915493772"
 local assetIdFundo = "rbxassetid://114065081553101"
 
+-- Novos Assets
+local assetIdLapis = "rbxassetid://105157650009654"
+local assetIdDocumento = "rbxassetid://138942561519505"
+local assetIdLampada = "rbxassetid://82557612348731"
+
 local collectedData = {}
-local selectedInstances = {}
+local selectedProps = {} -- Tabela de controle persistente por Instância do Prop
+local activeHighlights = {} -- Tabela para gerenciar os ESPs criados
+
 local clickTimer = 0
 local toolEquipped = false
 local pendingPropData = nil
@@ -55,12 +62,13 @@ local function makeDraggable(guiObject)
     end)
 end
 
--- Botão Flutuante Superior
+-- Botão Flutuante Superior (Sem bordas, ID Puro)
 local floatingBtn = Instance.new("ImageButton", screenGui)
 floatingBtn.Size = UDim2.new(0, 65, 0, 65)
 floatingBtn.Position = UDim2.new(0.03, 0, 0.25, 0)
 floatingBtn.Image = assetIdBotao
 floatingBtn.BackgroundTransparency = 1
+floatingBtn.BorderSizePixel = 0
 floatingBtn.ZIndex = 5
 makeDraggable(floatingBtn)
 
@@ -83,7 +91,7 @@ strokeMain.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 -- Fundo da Estrela
 local fundoEstrela = Instance.new("ImageLabel", mainFrame)
 fundoEstrela.Size = UDim2.new(0, 160, 0, 160)
-fundoEstrela.Position = UDim2.new(0.5, -80, 0.5, -80)
+fundoEstrela.Position = UDim2.new(0.5, -80, 0.5, -70)
 fundoEstrela.BackgroundTransparency = 1
 fundoEstrela.Image = assetIdFundo
 fundoEstrela.ImageTransparency = 0.88
@@ -91,7 +99,7 @@ fundoEstrela.ZIndex = 11
 
 -- Header
 local header = Instance.new("Frame", mainFrame)
-header.Size = UDim2.new(1, 0, 0, 40)
+header.Size = UDim2.new(1, 0, 0, 42)
 header.BackgroundTransparency = 1
 header.ZIndex = 12
 
@@ -110,19 +118,19 @@ headerLine.BorderSizePixel = 0
 headerLine.ZIndex = 12
 
 local title = Instance.new("TextLabel", header)
-title.Size = UDim2.new(0, 220, 0, 20)
-title.Position = UDim2.new(0, 48, 0, 4)
+title.Size = UDim2.new(0, 200, 0, 18)
+title.Position = UDim2.new(0, 48, 0, 6)
 title.BackgroundTransparency = 1
 title.Text = "Props Data Collector"
 title.Font = Enum.Font.Arcade
-title.TextSize = 18
+title.TextSize = 17
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.ZIndex = 12
 
 local subtitle = Instance.new("TextLabel", header)
-subtitle.Size = UDim2.new(0, 220, 0, 14)
-subtitle.Position = UDim2.new(0, 48, 0, 22)
+subtitle.Size = UDim2.new(0, 200, 0, 12)
+subtitle.Position = UDim2.new(0, 48, 0, 24)
 subtitle.BackgroundTransparency = 1
 subtitle.Text = "Project SPWN 0.0.0.0.1"
 subtitle.Font = Enum.Font.Arcade
@@ -131,9 +139,10 @@ subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
 subtitle.TextXAlignment = Enum.TextXAlignment.Left
 subtitle.ZIndex = 12
 
+-- Botão Invoke Tool
 local btnToggleTool = Instance.new("TextButton", header)
 btnToggleTool.Size = UDim2.new(0, 110, 0, 26)
-btnToggleTool.Position = UDim2.new(1, -120, 0, 7)
+btnToggleTool.Position = UDim2.new(1, -120, 0, 8)
 btnToggleTool.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 btnToggleTool.Text = "Invoke Tool"
 btnToggleTool.Font = Enum.Font.Arcade
@@ -146,10 +155,31 @@ strokeToggleTool.Color = Color3.fromRGB(255, 255, 255)
 strokeToggleTool.Thickness = 1.5
 strokeToggleTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
+-- Botão Lápis
+local btnLapis = Instance.new("ImageButton", header)
+btnLapis.Size = UDim2.new(0, 26, 0, 26)
+btnLapis.Position = UDim2.new(1, -153, 0, 8)
+btnLapis.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+btnLapis.Image = assetIdLapis
+btnLapis.ZIndex = 13
+
+local strokeLapis = Instance.new("UIStroke", btnLapis)
+strokeLapis.Color = Color3.fromRGB(255, 255, 255)
+strokeLapis.Thickness = 1.5
+strokeLapis.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Linha Divisória Superior
+local topHeaderLine = Instance.new("Frame", mainFrame)
+topHeaderLine.Size = UDim2.new(1, -20, 0, 1.5)
+topHeaderLine.Position = UDim2.new(0, 10, 0, 42)
+topHeaderLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+topHeaderLine.BorderSizePixel = 0
+topHeaderLine.ZIndex = 12
+
 -- Area Scroll
 local scrollFrame = Instance.new("ScrollingFrame", mainFrame)
-scrollFrame.Size = UDim2.new(1, -20, 0, 205)
-scrollFrame.Position = UDim2.new(0, 10, 0, 45)
+scrollFrame.Size = UDim2.new(1, -20, 0, 200)
+scrollFrame.Position = UDim2.new(0, 10, 0, 48)
 scrollFrame.BackgroundTransparency = 1
 scrollFrame.ClipsDescendants = true
 scrollFrame.ScrollBarThickness = 8
@@ -179,11 +209,11 @@ footer.ZIndex = 12
 
 local btnClear = Instance.new("TextButton", footer)
 btnClear.Size = UDim2.new(0, 100, 0, 28)
-btnClear.Position = UDim2.new(0.22, -50, 0.5, -14)
+btnClear.Position = UDim2.new(0, 40, 0.5, -14)
 btnClear.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 btnClear.Text = "Clear data"
 btnClear.Font = Enum.Font.Arcade
-btnClear.TextSize = 14
+btnClear.TextSize = 13
 btnClear.TextColor3 = Color3.fromRGB(255, 255, 255)
 btnClear.ZIndex = 13
 
@@ -193,12 +223,12 @@ strokeClear.Thickness = 1.5
 strokeClear.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 local btnCopy = Instance.new("TextButton", footer)
-btnCopy.Size = UDim2.new(0, 140, 0, 28)
-btnCopy.Position = UDim2.new(0.68, -70, 0.5, -14)
+btnCopy.Size = UDim2.new(0, 100, 0, 28)
+btnCopy.Position = UDim2.new(0, 150, 0.5, -14)
 btnCopy.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 btnCopy.Text = "Copy data"
 btnCopy.Font = Enum.Font.Arcade
-btnCopy.TextSize = 16
+btnCopy.TextSize = 13
 btnCopy.TextColor3 = Color3.fromRGB(255, 255, 255)
 btnCopy.ZIndex = 13
 
@@ -206,6 +236,32 @@ local strokeCopy = Instance.new("UIStroke", btnCopy)
 strokeCopy.Color = Color3.fromRGB(255, 255, 255)
 strokeCopy.Thickness = 1.5
 strokeCopy.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Botão Documento
+local btnDocumento = Instance.new("ImageButton", footer)
+btnDocumento.Size = UDim2.new(0, 36, 0, 36)
+btnDocumento.Position = UDim2.new(1, -92, 0.5, -18)
+btnDocumento.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+btnDocumento.Image = assetIdDocumento
+btnDocumento.ZIndex = 13
+
+local strokeDocumento = Instance.new("UIStroke", btnDocumento)
+strokeDocumento.Color = Color3.fromRGB(255, 255, 255)
+strokeDocumento.Thickness = 1.5
+strokeDocumento.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+-- Botão Lâmpada
+local btnLampada = Instance.new("ImageButton", footer)
+btnLampada.Size = UDim2.new(0, 36, 0, 36)
+btnLampada.Position = UDim2.new(1, -46, 0.5, -18)
+btnLampada.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+btnLampada.Image = assetIdLampada
+btnLampada.ZIndex = 13
+
+local strokeLampada = Instance.new("UIStroke", btnLampada)
+strokeLampada.Color = Color3.fromRGB(255, 255, 255)
+strokeLampada.Thickness = 1.5
+strokeLampada.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 -- Botão Flutuante Ferramenta
 local actionButton = Instance.new("TextButton", screenGui)
@@ -229,6 +285,22 @@ uiStrokeTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 local uiCornerTool = Instance.new("UICorner", actionButton)
 uiCornerTool.CornerRadius = UDim.new(0, 2)
+
+actionButton.MouseButton1Click:Connect(function()
+    toolEquipped = not toolEquipped
+    actionButton.BackgroundTransparency = toolEquipped and 0.45 or 0
+    actionButton.TextTransparency = toolEquipped and 0.35 or 0
+end)
+
+btnToggleTool.MouseButton1Click:Connect(function()
+    actionButton.Visible = not actionButton.Visible
+    btnToggleTool.Text = actionButton.Visible and "Hide Tool" or "Invoke Tool"
+    if not actionButton.Visible then 
+        toolEquipped = false 
+        actionButton.BackgroundTransparency = 0
+        actionButton.TextTransparency = 0
+    end
+end)
 
 -- Mini Interface Arrastável (Nomeação do Prop)
 local nameModal = Instance.new("Frame", screenGui)
@@ -290,46 +362,26 @@ strokeConfirm.Color = Color3.fromRGB(255, 255, 255)
 strokeConfirm.Thickness = 1
 strokeConfirm.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Adapter de Registro
-_G.ScriptAdapter = _G.ScriptAdapter or {}
-_G.ScriptAdapter.Queue = _G.ScriptAdapter.Queue or {}
-
-local toolData = {
-    Id = "CollectorProp_Tool",
-    ButtonUI = actionButton,
-    OnEquip = function()
-        toolEquipped = true
-        actionButton.BackgroundTransparency = 0.45
-        actionButton.TextTransparency = 0.35
-    end,
-    OnUnequip = function()
-        toolEquipped = false
-        actionButton.BackgroundTransparency = 0
-        actionButton.TextTransparency = 0
-    end
-}
-
-if _G.ScriptAdapter and _G.ScriptAdapter.RegisterTool then
-    _G.ScriptAdapter:RegisterTool(toolData)
-else
-    table.insert(_G.ScriptAdapter.Queue, toolData)
+-- Função para criar Aura ESP Branca e Grossa
+local function createESP(instance)
+    if not instance then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "SPWN_Prop_ESP"
+    highlight.Adornee = instance
+    highlight.FillColor = Color3.fromRGB(255, 255, 255)
+    highlight.FillTransparency = 0.85
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.OutlineTransparency = 0 -- Borda 100% visível e destacada
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = CoreGui
+    
+    table.insert(activeHighlights, highlight)
 end
 
-actionButton.MouseButton1Click:Connect(function()
-    toolEquipped = not toolEquipped
-    actionButton.BackgroundTransparency = toolEquipped and 0.45 or 0
-    actionButton.TextTransparency = toolEquipped and 0.35 or 0
-end)
-
-btnToggleTool.MouseButton1Click:Connect(function()
-    actionButton.Visible = not actionButton.Visible
-    btnToggleTool.Text = actionButton.Visible and "Hide Tool" or "Invoke Tool"
-    if not actionButton.Visible then toolEquipped = false end
-end)
-
--- Identificador do Prop direto no momento do clique
+-- Identificador do Prop
 local function getPropInformation(part)
-    if not part or not part:IsA("BasePart") then return nil, nil end
+    if not part or not part:IsA("BasePart") then return nil, nil, nil end
 
     local current = part
     local propInstance = nil
@@ -342,8 +394,8 @@ local function getPropInformation(part)
         current = current.Parent
     end
 
-    if not propInstance then return nil, nil end -- Garante que ignoramos terreno, mapa estático e Baseplate
-    return propInstance.Name, part
+    if not propInstance then return nil, nil, nil end
+    return propInstance.Name, part, propInstance
 end
 
 -- Atualização da UI
@@ -412,6 +464,13 @@ local function confirmPropName()
             pendingPropData.name = customName
         end
 
+        -- Aplica o ESP Visual
+        createESP(pendingPropData.instance)
+
+        -- Registra o bloqueio no objeto
+        selectedProps[pendingPropData.instance] = true
+        pcall(function() pendingPropData.instance:SetAttribute("SPWN_Collected", true) end)
+
         table.insert(collectedData, pendingPropData)
         updateUI()
         pendingPropData = nil
@@ -459,7 +518,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         local unitRay = camera:ScreenPointToRay(pos.X, pos.Y)
         local raycastParams = RaycastParams.new()
 
-        -- Exclui Personagens de Jogadores e o próprio ScreenGui da Câmera
         local ignoreList = {screenGui}
         for _, p in ipairs(Players:GetPlayers()) do
             if p.Character then table.insert(ignoreList, p.Character) end
@@ -471,17 +529,14 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         local raycastResult = Workspace:Raycast(unitRay.Origin, unitRay.Direction * 5000, raycastParams)
         if raycastResult and raycastResult.Instance then
             local target = raycastResult.Instance
-            local propName, targetPart = getPropInformation(target)
+            local propName, targetPart, propInstance = getPropInformation(target)
 
-            if propName and targetPart and not selectedInstances[targetPart] then
+            -- Validação Dupla de Proteção Contra Reseleção
+            if propInstance and not selectedProps[propInstance] and not propInstance:GetAttribute("SPWN_Collected") then
                 local character = player.Character
                 local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
                 if hrp then
-                    selectedInstances[targetPart] = true
-
-                    -- CORREÇÃO DA PRECISÃO:
-                    -- Isola apenas a posição neutra do player no espaço (Ignora a rotação do corpo)
                     local basePlayerCFrame = CFrame.new(hrp.Position)
                     local relativeCF = basePlayerCFrame:ToObjectSpace(targetPart.CFrame)
 
@@ -495,7 +550,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
                         distance = distStuds,
                         cfComponents = {relativeCF:GetComponents()},
                         size = targetPart.Size,
-                        color = targetPart.Color
+                        color = targetPart.Color,
+                        instance = propInstance
                     }
 
                     nameInput.Text = propName
@@ -507,10 +563,21 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Limpar dados
+-- Limpar dados e remover ESPs
 btnClear.MouseButton1Click:Connect(function()
+    for _, hl in ipairs(activeHighlights) do
+        if hl then hl:Destroy() end
+    end
+    activeHighlights = {}
+    
+    for instance, _ in pairs(selectedProps) do
+        if instance and instance.Parent then
+            pcall(function() instance:SetAttribute("SPWN_Collected", nil) end)
+        end
+    end
+    selectedProps = {}
+
     collectedData = {}
-    selectedInstances = {}
     updateUI()
 end)
 
@@ -519,7 +586,6 @@ btnCopy.MouseButton1Click:Connect(function()
     local output = "local EstrelaLayout = {\n"
     for i, d in ipairs(collectedData) do
         local c = d.cfComponents
-        -- Ajustada a precisão dos componentes de rotação para %.4f para evitar distorções
         output = output .. string.format(
             "    [%d] = {Name = \"%s\", Distance = %.2f, Pos = Vector3.new(%.3f, %.3f, %.3f), Rot = Vector3.new(%.2f, %.2f, %.2f), CFrameToPlayer = CFrame.new(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f), Size = Vector3.new(%.2f, %.2f, %.2f), Color = Color3.new(%.3f, %.3f, %.3f)},\n",
             i, d.name, d.distance,
