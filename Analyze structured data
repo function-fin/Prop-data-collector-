@@ -24,6 +24,17 @@ local clickTimer = 0
 local toolEquipped = false
 local pendingPropData = nil
 
+-- Mapeamento de Categoria por PropId Real
+local CategoriaMapa = {
+    ["Wall"] = "Building",
+    ["PowerTurbine"] = "Building",
+    ["BigGunBunker"] = "Building",
+}
+
+local function ObterCategoria(propId)
+    return CategoriaMapa[propId] or "Building"
+end
+
 -- UI Principal
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "PropsDataCollectorSPWN"
@@ -365,23 +376,23 @@ strokeConfirm.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 -- Função para criar Aura ESP Branca e Grossa
 local function createESP(instance)
     if not instance then return end
-    
+
     local highlight = Instance.new("Highlight")
     highlight.Name = "SPWN_Prop_ESP"
     highlight.Adornee = instance
     highlight.FillColor = Color3.fromRGB(255, 255, 255)
     highlight.FillTransparency = 0.85
     highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-    highlight.OutlineTransparency = 0 -- Borda 100% visível e destacada
+    highlight.OutlineTransparency = 0
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     highlight.Parent = CoreGui
-    
+
     table.insert(activeHighlights, highlight)
 end
 
--- Identificador do Prop
+-- Identificador do Prop com Captura do Atributo 'id'
 local function getPropInformation(part)
-    if not part or not part:IsA("BasePart") then return nil, nil, nil end
+    if not part or not part:IsA("BasePart") then return nil, nil, nil, nil end
 
     local current = part
     local propInstance = nil
@@ -394,8 +405,11 @@ local function getPropInformation(part)
         current = current.Parent
     end
 
-    if not propInstance then return nil, nil, nil end
-    return propInstance.Name, part, propInstance
+    if not propInstance then return nil, nil, nil, nil end
+    
+    -- Leitura estrita do Atributo CHAVE 'id'
+    local realPropId = propInstance:GetAttribute("id") or propInstance.Name
+    return propInstance.Name, realPropId, part, propInstance
 end
 
 -- Atualização da UI
@@ -418,13 +432,13 @@ local function updateUI()
         rowBox.Active = false
         rowBox.ZIndex = 13
 
-        rowBox.Text = string.format("[ PROP %d ]: Name: %s | RelPos: %.2f, %.2f, %.2f | Rot: %.1f, %.1f, %.1f | Dist: %.1fs | Color: %.2f, %.2f, %.2f", 
+        rowBox.Text = string.format("[ PROP %d ]: Name: %s | PropID: %s | RelPos: %.2f, %.2f, %.2f | Rot: %.1f, %.1f, %.1f | Dist: %.1fs", 
             i, 
             data.name,
+            data.propId,
             data.pos.X, data.pos.Y, data.pos.Z, 
             data.rot.X, data.rot.Y, data.rot.Z,
-            data.distance,
-            data.color.R, data.color.G, data.color.B
+            data.distance
         )
 
         local holdThread = nil
@@ -464,10 +478,8 @@ local function confirmPropName()
             pendingPropData.name = customName
         end
 
-        -- Aplica o ESP Visual
         createESP(pendingPropData.instance)
 
-        -- Registra o bloqueio no objeto
         selectedProps[pendingPropData.instance] = true
         pcall(function() pendingPropData.instance:SetAttribute("SPWN_Collected", true) end)
 
@@ -484,7 +496,7 @@ nameInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then confirmPropName() end
 end)
 
--- Captura via Raycast
+-- Captura via Raycast ao Clicar com a Tool do Coletor
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed or not toolEquipped or not actionButton.Visible then return end
 
@@ -529,9 +541,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         local raycastResult = Workspace:Raycast(unitRay.Origin, unitRay.Direction * 5000, raycastParams)
         if raycastResult and raycastResult.Instance then
             local target = raycastResult.Instance
-            local propName, targetPart, propInstance = getPropInformation(target)
+            local workspaceName, realPropId, targetPart, propInstance = getPropInformation(target)
 
-            -- Validação Dupla de Proteção Contra Reseleção
             if propInstance and not selectedProps[propInstance] and not propInstance:GetAttribute("SPWN_Collected") then
                 local character = player.Character
                 local hrp = character and character:FindFirstChild("HumanoidRootPart")
@@ -542,9 +553,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 
                     local rx, ry, rz = relativeCF:ToOrientation()
                     local distStuds = (targetPart.Position - hrp.Position).Magnitude
+                    local categoria = ObterCategoria(realPropId)
 
                     pendingPropData = {
-                        name = propName,
+                        name = workspaceName,
+                        propId = realPropId,
+                        categoria = categoria,
                         pos = relativeCF.Position,
                         rot = Vector3.new(math.deg(rx), math.deg(ry), math.deg(rz)),
                         distance = distStuds,
@@ -554,7 +568,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
                         instance = propInstance
                     }
 
-                    nameInput.Text = propName
+                    nameInput.Text = workspaceName .. " " .. realPropId
                     nameModal.Visible = true
                     nameInput:CaptureFocus()
                 end
@@ -569,7 +583,7 @@ btnClear.MouseButton1Click:Connect(function()
         if hl then hl:Destroy() end
     end
     activeHighlights = {}
-    
+
     for instance, _ in pairs(selectedProps) do
         if instance and instance.Parent then
             pcall(function() instance:SetAttribute("SPWN_Collected", nil) end)
@@ -581,19 +595,35 @@ btnClear.MouseButton1Click:Connect(function()
     updateUI()
 end)
 
--- Copiar dados
+-- Copiar dados formatados completos com Remotes do Servidor
 btnCopy.MouseButton1Click:Connect(function()
     local output = "local EstrelaLayout = {\n"
     for i, d in ipairs(collectedData) do
         local c = d.cfComponents
         output = output .. string.format(
-            "    [%d] = {Name = \"%s\", Distance = %.2f, Pos = Vector3.new(%.3f, %.3f, %.3f), Rot = Vector3.new(%.2f, %.2f, %.2f), CFrameToPlayer = CFrame.new(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f), Size = Vector3.new(%.2f, %.2f, %.2f), Color = Color3.new(%.3f, %.3f, %.3f)},\n",
-            i, d.name, d.distance,
+            "    [%d] = {\n" ..
+            "        Name = \"%s\",\n" ..
+            "        PropId = \"%s\",\n" ..
+            "        Categoria = \"%s\",\n" ..
+            "        Distance = %.2f,\n" ..
+            "        Pos = Vector3.new(%.3f, %.3f, %.3f),\n" ..
+            "        Rot = Vector3.new(%.2f, %.2f, %.2f),\n" ..
+            "        CFrameToPlayer = CFrame.new(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f),\n" ..
+            "        Size = Vector3.new(%.2f, %.2f, %.2f),\n" ..
+            "        Color = Color3.new(%.3f, %.3f, %.3f),\n" ..
+            "        Remotes = {\n" ..
+            "            EquipTool = {Target = 'game:GetService(\"ReplicatedStorage\").RE[\"1Too1l\"]', Method = 'InvokeServer', Args = {\"PickingTools\", \"PropMaker\"}},\n" ..
+            "            RequestProp = {Target = 'game:GetService(\"ReplicatedStorage\").RE[\"1Clea1rTool1s\"]', Method = 'FireServer', Args = {\"RequestingPropName\", \"%s\", \"%s\"}},\n" ..
+            "            PlaceProp = {Target = 'game:GetService(\"Workspace\")[Player.Name].PropMaker.Tool_PropMake', Method = 'FireServer', Args = {\"Part\", \"Vector3Position\"}}\n" ..
+            "        }\n" ..
+            "    },\n",
+            i, d.name, d.propId, d.categoria, d.distance,
             d.pos.X, d.pos.Y, d.pos.Z, 
             d.rot.X, d.rot.Y, d.rot.Z, 
             c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12],
             d.size.X, d.size.Y, d.size.Z, 
-            d.color.R, d.color.G, d.color.B
+            d.color.R, d.color.G, d.color.B,
+            d.propId, d.categoria
         )
     end
     output = output .. "}"
