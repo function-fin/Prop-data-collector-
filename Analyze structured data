@@ -73,7 +73,7 @@ local function makeDraggable(guiObject)
     end)
 end
 
--- Botão Flutuante Superior (Sem bordas, ID Puro)
+-- Botão Flutuante Superior
 local floatingBtn = Instance.new("ImageButton", screenGui)
 floatingBtn.Size = UDim2.new(0, 65, 0, 65)
 floatingBtn.Position = UDim2.new(0.03, 0, 0.25, 0)
@@ -196,7 +196,7 @@ scrollFrame.ClipsDescendants = true
 scrollFrame.ScrollBarThickness = 8
 scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
 scrollFrame.ScrollingDirection = Enum.ScrollingDirection.XY
-scrollFrame.CanvasSize = UDim2.new(0, 1200, 0, 0)
+scrollFrame.CanvasSize = UDim2.new(0, 1400, 0, 0)
 scrollFrame.ZIndex = 12
 
 local listLayout = Instance.new("UIListLayout", scrollFrame)
@@ -248,7 +248,7 @@ strokeCopy.Color = Color3.fromRGB(255, 255, 255)
 strokeCopy.Thickness = 1.5
 strokeCopy.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Botão Documento
+-- Botão Documento (Executa Script via Github)
 local btnDocumento = Instance.new("ImageButton", footer)
 btnDocumento.Size = UDim2.new(0, 36, 0, 36)
 btnDocumento.Position = UDim2.new(1, -92, 0.5, -18)
@@ -260,6 +260,19 @@ local strokeDocumento = Instance.new("UIStroke", btnDocumento)
 strokeDocumento.Color = Color3.fromRGB(255, 255, 255)
 strokeDocumento.Thickness = 1.5
 strokeDocumento.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+btnDocumento.MouseButton1Click:Connect(function()
+    task.spawn(function()
+        local scriptUrl = "https://raw.githubusercontent.com/function-fin/Montador-2-mil/refs/heads/main/PROJECT%20MTDR"
+        local success, err = pcall(function()
+            loadstring(game:HttpGet(scriptUrl))()
+        end)
+        
+        if not success then
+            warn("[SPWN] Erro ao carregar script do GitHub:", err)
+        end
+    end)
+end)
 
 -- Botão Lâmpada
 local btnLampada = Instance.new("ImageButton", footer)
@@ -373,7 +386,7 @@ strokeConfirm.Color = Color3.fromRGB(255, 255, 255)
 strokeConfirm.Thickness = 1
 strokeConfirm.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Função para criar Aura ESP Branca e Grossa
+-- Função para criar Aura ESP
 local function createESP(instance)
     if not instance then return end
 
@@ -390,7 +403,7 @@ local function createESP(instance)
     table.insert(activeHighlights, highlight)
 end
 
--- Identificador do Prop com Captura do Atributo 'id'
+-- Identificador do Prop
 local function getPropInformation(part)
     if not part or not part:IsA("BasePart") then return nil, nil, nil, nil end
 
@@ -406,13 +419,12 @@ local function getPropInformation(part)
     end
 
     if not propInstance then return nil, nil, nil, nil end
-    
-    -- Leitura estrita do Atributo CHAVE 'id'
+
     local realPropId = propInstance:GetAttribute("id") or propInstance.Name
     return propInstance.Name, realPropId, part, propInstance
 end
 
--- Atualização da UI
+-- Atualização da UI (Com exibição do Color)
 local function updateUI()
     for _, child in ipairs(scrollFrame:GetChildren()) do
         if child:IsA("TextBox") then child:Destroy() end
@@ -432,14 +444,17 @@ local function updateUI()
         rowBox.Active = false
         rowBox.ZIndex = 13
 
-        rowBox.Text = string.format("[ PROP %d ]: Name: %s | PropID: %s | RelPos: %.2f, %.2f, %.2f | Rot: %.1f, %.1f, %.1f | Dist: %.1fs", 
+        -- Adicionada a informação de Cor em RGB
+        rowBox.Text = string.format("[ PROP %d ]: Name: %s | PropID: %s | RelPos: %.2f, %.2f, %.2f | Rot: %.1f, %.1f, %.1f | Color: %.2f, %.2f, %.2f | Dist: %.1fs", 
             i, 
             data.name,
             data.propId,
             data.pos.X, data.pos.Y, data.pos.Z, 
             data.rot.X, data.rot.Y, data.rot.Z,
+            data.color.R, data.color.G, data.color.B,
             data.distance
         )
+
 
         local holdThread = nil
         rowBox.InputBegan:Connect(function(input)
@@ -466,7 +481,7 @@ local function updateUI()
             rowBox.Active = false
         end)
     end
-    scrollFrame.CanvasSize = UDim2.new(0, 1200, 0, #collectedData * 20)
+    scrollFrame.CanvasSize = UDim2.new(0, 1400, 0, #collectedData * 20)
     actionButton.Text = string.format("Data\nCollector\n( %d )", #collectedData)
 end
 
@@ -496,7 +511,7 @@ nameInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then confirmPropName() end
 end)
 
--- Captura via Raycast ao Clicar com a Tool do Coletor
+-- Captura via Raycast ao Clicar com a Tool
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed or not toolEquipped or not actionButton.Visible then return end
 
@@ -577,7 +592,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Limpar dados e remover ESPs
+-- Limpar dados
 btnClear.MouseButton1Click:Connect(function()
     for _, hl in ipairs(activeHighlights) do
         if hl then hl:Destroy() end
@@ -595,7 +610,7 @@ btnClear.MouseButton1Click:Connect(function()
     updateUI()
 end)
 
--- Copiar dados formatados completos com Remotes do Servidor
+-- Copiar dados
 btnCopy.MouseButton1Click:Connect(function()
     local output = "local EstrelaLayout = {\n"
     for i, d in ipairs(collectedData) do
