@@ -248,7 +248,7 @@ strokeCopy.Color = Color3.fromRGB(255, 255, 255)
 strokeCopy.Thickness = 1.5
 strokeCopy.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Botão Documento (Executa Script via Github)
+-- Botão Documento
 local btnDocumento = Instance.new("ImageButton", footer)
 btnDocumento.Size = UDim2.new(0, 36, 0, 36)
 btnDocumento.Position = UDim2.new(1, -92, 0.5, -18)
@@ -267,7 +267,7 @@ btnDocumento.MouseButton1Click:Connect(function()
         local success, err = pcall(function()
             loadstring(game:HttpGet(scriptUrl))()
         end)
-        
+
         if not success then
             warn("[SPWN] Erro ao carregar script do GitHub:", err)
         end
@@ -424,7 +424,44 @@ local function getPropInformation(part)
     return propInstance.Name, realPropId, part, propInstance
 end
 
--- Atualização da UI (Com exibição do Color)
+-- EXTRAÇÃO DO CFRAME RAIZ / MESTRE DO PROP
+local function getRootCFrameAndSize(propInstance, clickedPart)
+    local targetCF, targetSize, targetColor
+
+    if propInstance:IsA("Model") then
+        if propInstance.PrimaryPart then
+            targetCF = propInstance.PrimaryPart.CFrame
+            targetSize = propInstance.PrimaryPart.Size
+            targetColor = propInstance.PrimaryPart.Color
+        else
+            -- Procura por uma parte com nome de raiz comum
+            local rootPart = propInstance:FindFirstChild("Root") or propInstance:FindFirstChild("HumanoidRootPart") or propInstance:FindFirstChild("Main")
+            if rootPart and rootPart:IsA("BasePart") then
+                targetCF = rootPart.CFrame
+                targetSize = rootPart.Size
+                targetColor = rootPart.Color
+            else
+                -- BoundingBox do Modelo inteiro
+                local cf, sz = propInstance:GetBoundingBox()
+                targetCF = cf
+                targetSize = sz
+                targetColor = clickedPart and clickedPart.Color or Color3.fromRGB(255, 255, 255)
+            end
+        end
+    elseif propInstance:IsA("BasePart") then
+        targetCF = propInstance.CFrame
+        targetSize = propInstance.Size
+        targetColor = propInstance.Color
+    else
+        targetCF = clickedPart.CFrame
+        targetSize = clickedPart.Size
+        targetColor = clickedPart.Color
+    end
+
+    return targetCF, targetSize, targetColor
+end
+
+-- Atualização da UI
 local function updateUI()
     for _, child in ipairs(scrollFrame:GetChildren()) do
         if child:IsA("TextBox") then child:Destroy() end
@@ -444,7 +481,6 @@ local function updateUI()
         rowBox.Active = false
         rowBox.ZIndex = 13
 
-        -- Adicionada a informação de Cor em RGB
         rowBox.Text = string.format("[ PROP %d ]: Name: %s | PropID: %s | RelPos: %.2f, %.2f, %.2f | Rot: %.1f, %.1f, %.1f | Color: %.2f, %.2f, %.2f | Dist: %.1fs", 
             i, 
             data.name,
@@ -454,7 +490,6 @@ local function updateUI()
             data.color.R, data.color.G, data.color.B,
             data.distance
         )
-
 
         local holdThread = nil
         rowBox.InputBegan:Connect(function(input)
@@ -563,11 +598,14 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
                 local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
                 if hrp then
+                    -- Busca o CFrame Mestre/Raiz e Dimensões Reais da Estrutura
+                    local rootCF, rootSize, rootColor = getRootCFrameAndSize(propInstance, targetPart)
+
                     local basePlayerCFrame = CFrame.new(hrp.Position)
-                    local relativeCF = basePlayerCFrame:ToObjectSpace(targetPart.CFrame)
+                    local relativeCF = basePlayerCFrame:ToObjectSpace(rootCF)
 
                     local rx, ry, rz = relativeCF:ToOrientation()
-                    local distStuds = (targetPart.Position - hrp.Position).Magnitude
+                    local distStuds = (rootCF.Position - hrp.Position).Magnitude
                     local categoria = ObterCategoria(realPropId)
 
                     pendingPropData = {
@@ -578,8 +616,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
                         rot = Vector3.new(math.deg(rx), math.deg(ry), math.deg(rz)),
                         distance = distStuds,
                         cfComponents = {relativeCF:GetComponents()},
-                        size = targetPart.Size,
-                        color = targetPart.Color,
+                        size = rootSize,
+                        color = rootColor,
                         instance = propInstance
                     }
 
