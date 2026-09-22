@@ -424,7 +424,7 @@ local function getPropInformation(part)
     return propInstance.Name, realPropId, part, propInstance
 end
 
--- EXTRAÇÃO DO CFRAME RAIZ / MESTRE DO PROP
+-- EXTRAÇÃO DO CFRAME RAIZ / MESTRE DO PROP (POSIÇÃO E ROTAÇÃO)
 local function getRootCFrameAndSize(propInstance, clickedPart)
     local targetCF, targetSize, targetColor
 
@@ -441,7 +441,7 @@ local function getRootCFrameAndSize(propInstance, clickedPart)
                 targetSize = rootPart.Size
                 targetColor = rootPart.Color
             else
-                -- BoundingBox do Modelo inteiro
+                -- BoundingBox do Modelo inteiro (captura CFrame e rotação completa da caixa delimitadora)
                 local cf, sz = propInstance:GetBoundingBox()
                 targetCF = cf
                 targetSize = sz
@@ -481,7 +481,7 @@ local function updateUI()
         rowBox.Active = false
         rowBox.ZIndex = 13
 
-        rowBox.Text = string.format("[ PROP %d ]: Name: %s | PropID: %s | RelPos: %.2f, %.2f, %.2f | Rot: %.1f, %.1f, %.1f | Color: %.2f, %.2f, %.2f | Dist: %.1fs", 
+rowBox.Text = string.format("[ PROP %d ]: Name: %s | PropID: %s | RelPos: %.2f, %.2f, %.2f | Rot: %.1f, %.1f, %.1f | Color: %.2f, %.2f, %.2f | Dist: %.1fs", 
             i, 
             data.name,
             data.propId,
@@ -598,10 +598,11 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
                 local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
                 if hrp then
-                    -- Busca o CFrame Mestre/Raiz e Dimensões Reais da Estrutura
+                    -- Coleta o CFrame Mestre completo (que inclui a rotação da raiz/PrimaryPart)
                     local rootCF, rootSize, rootColor = getRootCFrameAndSize(propInstance, targetPart)
 
                     local basePlayerCFrame = CFrame.new(hrp.Position)
+                    -- O CFrame Relativo agora preserva a matriz de rotação da raiz em relação ao jogador
                     local relativeCF = basePlayerCFrame:ToObjectSpace(rootCF)
 
                     local rx, ry, rz = relativeCF:ToOrientation()
