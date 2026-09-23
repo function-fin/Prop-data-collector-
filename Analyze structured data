@@ -424,7 +424,7 @@ local function getPropInformation(part)
     return propInstance.Name, realPropId, part, propInstance
 end
 
--- EXTRAÇÃO DO CFRAME RAIZ / MESTRE DO PROP (POSIÇÃO E ROTAÇÃO)
+-- EXTRAÇÃO DO CFRAME RAIZ / MESTRE DO PROP
 local function getRootCFrameAndSize(propInstance, clickedPart)
     local targetCF, targetSize, targetColor
 
@@ -434,14 +434,12 @@ local function getRootCFrameAndSize(propInstance, clickedPart)
             targetSize = propInstance.PrimaryPart.Size
             targetColor = propInstance.PrimaryPart.Color
         else
-            -- Procura por uma parte com nome de raiz comum
             local rootPart = propInstance:FindFirstChild("Root") or propInstance:FindFirstChild("HumanoidRootPart") or propInstance:FindFirstChild("Main")
             if rootPart and rootPart:IsA("BasePart") then
                 targetCF = rootPart.CFrame
                 targetSize = rootPart.Size
                 targetColor = rootPart.Color
             else
-                -- BoundingBox do Modelo inteiro (captura CFrame e rotação completa da caixa delimitadora)
                 local cf, sz = propInstance:GetBoundingBox()
                 targetCF = cf
                 targetSize = sz
@@ -481,7 +479,7 @@ local function updateUI()
         rowBox.Active = false
         rowBox.ZIndex = 13
 
-rowBox.Text = string.format("[ PROP %d ]: Name: %s | PropID: %s | RelPos: %.2f, %.2f, %.2f | Rot: %.1f, %.1f, %.1f | Color: %.2f, %.2f, %.2f | Dist: %.1fs", 
+        rowBox.Text = string.format("[ PROP %d ]: Name: %s | PropID: %s | RelPos: %.2f, %.2f, %.2f | Rot: %.1f, %.1f, %.1f | Color: %.2f, %.2f, %.2f | Dist: %.1fs", 
             i, 
             data.name,
             data.propId,
@@ -491,7 +489,7 @@ rowBox.Text = string.format("[ PROP %d ]: Name: %s | PropID: %s | RelPos: %.2f, 
             data.distance
         )
 
-        local holdThread = nil
+local holdThread = nil
         rowBox.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 holdThread = task.delay(2.0, function()
@@ -598,12 +596,10 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
                 local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
                 if hrp then
-                    -- Coleta o CFrame Mestre completo (que inclui a rotação da raiz/PrimaryPart)
                     local rootCF, rootSize, rootColor = getRootCFrameAndSize(propInstance, targetPart)
 
-                    local basePlayerCFrame = CFrame.new(hrp.Position)
-                    -- O CFrame Relativo agora preserva a matriz de rotação da raiz em relação ao jogador
-                    local relativeCF = basePlayerCFrame:ToObjectSpace(rootCF)
+                    -- CORREÇÃO: Usamos o CFrame completo do HRP para garantir a orientação relativa exata de onde o jogador está olhando
+                    local relativeCF = hrp.CFrame:ToObjectSpace(rootCF)
 
                     local rx, ry, rz = relativeCF:ToOrientation()
                     local distStuds = (rootCF.Position - hrp.Position).Magnitude
