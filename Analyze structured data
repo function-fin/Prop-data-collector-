@@ -424,36 +424,51 @@ local function getPropInformation(part)
     return propInstance.Name, realPropId, part, propInstance
 end
 
--- EXTRAÇÃO DO CFRAME RAIZ / MESTRE DO PROP
+-- EXTRAÇÃO DO CFRAME RAIZ E DA COR REAL (PINTADA) DO PROP
 local function getRootCFrameAndSize(propInstance, clickedPart)
     local targetCF, targetSize, targetColor
 
+    -- 1. Captura da Cor Real (Pintada/Visível)
+    if clickedPart and clickedPart:IsA("BasePart") then
+        targetColor = clickedPart.Color
+    elseif propInstance then
+        local attrColor = propInstance:GetAttribute("Color") or propInstance:GetAttribute("PropColor") or propInstance:GetAttribute("PaintColor")
+        if attrColor and typeof(attrColor) == "Color3" then
+            targetColor = attrColor
+        else
+            for _, desc in ipairs(propInstance:GetDescendants()) do
+                if desc:IsA("BasePart") and desc.Transparency < 1 then
+                    targetColor = desc.Color
+                    break
+                end
+            end
+        end
+    end
+
+    targetColor = targetColor or Color3.fromRGB(255, 255, 255)
+
+    -- 2. Captura do CFrame e Tamanho Raiz
     if propInstance:IsA("Model") then
         if propInstance.PrimaryPart then
             targetCF = propInstance.PrimaryPart.CFrame
             targetSize = propInstance.PrimaryPart.Size
-            targetColor = propInstance.PrimaryPart.Color
         else
             local rootPart = propInstance:FindFirstChild("Root") or propInstance:FindFirstChild("HumanoidRootPart") or propInstance:FindFirstChild("Main")
             if rootPart and rootPart:IsA("BasePart") then
                 targetCF = rootPart.CFrame
                 targetSize = rootPart.Size
-                targetColor = rootPart.Color
             else
                 local cf, sz = propInstance:GetBoundingBox()
                 targetCF = cf
                 targetSize = sz
-                targetColor = clickedPart and clickedPart.Color or Color3.fromRGB(255, 255, 255)
             end
         end
     elseif propInstance:IsA("BasePart") then
         targetCF = propInstance.CFrame
         targetSize = propInstance.Size
-        targetColor = propInstance.Color
     else
-        targetCF = clickedPart.CFrame
-        targetSize = clickedPart.Size
-        targetColor = clickedPart.Color
+        targetCF = clickedPart and clickedPart.CFrame or CFrame.new()
+        targetSize = clickedPart and clickedPart.Size or Vector3.new(1, 1, 1)
     end
 
     return targetCF, targetSize, targetColor
@@ -489,7 +504,7 @@ local function updateUI()
             data.distance
         )
 
-local holdThread = nil
+        local holdThread = nil
         rowBox.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 holdThread = task.delay(2.0, function()
@@ -598,7 +613,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
                 if hrp then
                     local rootCF, rootSize, rootColor = getRootCFrameAndSize(propInstance, targetPart)
 
-                    -- CORREÇÃO: Usamos o CFrame completo do HRP para garantir a orientação relativa exata de onde o jogador está olhando
                     local relativeCF = hrp.CFrame:ToObjectSpace(rootCF)
 
                     local rx, ry, rz = relativeCF:ToOrientation()
