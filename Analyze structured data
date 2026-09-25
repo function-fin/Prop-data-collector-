@@ -6,25 +6,22 @@ local CoreGui = game:GetService("CoreGui")
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
--- Assets e Configurações
 local assetIdBotao = "rbxassetid://95142798137523"
 local assetIdSolTop = "rbxassetid://107617915493772"
 local assetIdFundo = "rbxassetid://114065081553101"
 
--- Novos Assets
 local assetIdLapis = "rbxassetid://105157650009654"
 local assetIdDocumento = "rbxassetid://138942561519505"
 local assetIdLampada = "rbxassetid://82557612348731"
 
 local collectedData = {}
-local selectedProps = {} -- Tabela de controle persistente por Instância do Prop
-local activeHighlights = {} -- Tabela para gerenciar os ESPs criados
+local selectedProps = {}
+local activeHighlights = {}
 
 local clickTimer = 0
 local toolEquipped = false
 local pendingPropData = nil
 
--- Mapeamento de Categoria por PropId Real
 local CategoriaMapa = {
     ["Wall"] = "Building",
     ["PowerTurbine"] = "Building",
@@ -35,7 +32,6 @@ local function ObterCategoria(propId)
     return CategoriaMapa[propId] or "Building"
 end
 
--- UI Principal
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "PropsDataCollectorSPWN"
 screenGui.ResetOnSpawn = false
@@ -44,7 +40,6 @@ screenGui.DisplayOrder = 10
 local success = pcall(function() screenGui.Parent = CoreGui end)
 if not success then screenGui.Parent = player:WaitForChild("PlayerGui") end
 
--- Sistema de Arrasto Unificado
 local function makeDraggable(guiObject)
     local dragging = false
     local dragStart, startPos
@@ -73,7 +68,6 @@ local function makeDraggable(guiObject)
     end)
 end
 
--- Botão Flutuante Superior
 local floatingBtn = Instance.new("ImageButton", screenGui)
 floatingBtn.Size = UDim2.new(0, 65, 0, 65)
 floatingBtn.Position = UDim2.new(0.03, 0, 0.25, 0)
@@ -83,7 +77,6 @@ floatingBtn.BorderSizePixel = 0
 floatingBtn.ZIndex = 5
 makeDraggable(floatingBtn)
 
--- Janela Principal
 local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.Size = UDim2.new(0, 440, 0, 310)
 mainFrame.Position = UDim2.new(0.5, -220, 0.5, -155)
@@ -99,7 +92,6 @@ strokeMain.Color = Color3.fromRGB(255, 255, 255)
 strokeMain.Thickness = 2
 strokeMain.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Fundo da Estrela
 local fundoEstrela = Instance.new("ImageLabel", mainFrame)
 fundoEstrela.Size = UDim2.new(0, 160, 0, 160)
 fundoEstrela.Position = UDim2.new(0.5, -80, 0.5, -70)
@@ -108,7 +100,6 @@ fundoEstrela.Image = assetIdFundo
 fundoEstrela.ImageTransparency = 0.88
 fundoEstrela.ZIndex = 11
 
--- Header
 local header = Instance.new("Frame", mainFrame)
 header.Size = UDim2.new(1, 0, 0, 42)
 header.BackgroundTransparency = 1
@@ -150,7 +141,6 @@ subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
 subtitle.TextXAlignment = Enum.TextXAlignment.Left
 subtitle.ZIndex = 12
 
--- Botão Invoke Tool
 local btnToggleTool = Instance.new("TextButton", header)
 btnToggleTool.Size = UDim2.new(0, 110, 0, 26)
 btnToggleTool.Position = UDim2.new(1, -120, 0, 8)
@@ -166,7 +156,6 @@ strokeToggleTool.Color = Color3.fromRGB(255, 255, 255)
 strokeToggleTool.Thickness = 1.5
 strokeToggleTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Botão Lápis
 local btnLapis = Instance.new("ImageButton", header)
 btnLapis.Size = UDim2.new(0, 26, 0, 26)
 btnLapis.Position = UDim2.new(1, -153, 0, 8)
@@ -179,7 +168,6 @@ strokeLapis.Color = Color3.fromRGB(255, 255, 255)
 strokeLapis.Thickness = 1.5
 strokeLapis.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Linha Divisória Superior
 local topHeaderLine = Instance.new("Frame", mainFrame)
 topHeaderLine.Size = UDim2.new(1, -20, 0, 1.5)
 topHeaderLine.Position = UDim2.new(0, 10, 0, 42)
@@ -187,7 +175,6 @@ topHeaderLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 topHeaderLine.BorderSizePixel = 0
 topHeaderLine.ZIndex = 12
 
--- Area Scroll
 local scrollFrame = Instance.new("ScrollingFrame", mainFrame)
 scrollFrame.Size = UDim2.new(1, -20, 0, 200)
 scrollFrame.Position = UDim2.new(0, 10, 0, 48)
@@ -203,7 +190,6 @@ local listLayout = Instance.new("UIListLayout", scrollFrame)
 listLayout.Padding = UDim.new(0, 3)
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
--- Linha Divisória Inferior
 local footerLine = Instance.new("Frame", mainFrame)
 footerLine.Size = UDim2.new(1, -20, 0, 1.5)
 footerLine.Position = UDim2.new(0, 10, 0, 255)
@@ -211,7 +197,6 @@ footerLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 footerLine.BorderSizePixel = 0
 footerLine.ZIndex = 12
 
--- Rodapé
 local footer = Instance.new("Frame", mainFrame)
 footer.Size = UDim2.new(1, 0, 0, 50)
 footer.Position = UDim2.new(0, 0, 0, 258)
@@ -248,7 +233,6 @@ strokeCopy.Color = Color3.fromRGB(255, 255, 255)
 strokeCopy.Thickness = 1.5
 strokeCopy.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Botão Documento
 local btnDocumento = Instance.new("ImageButton", footer)
 btnDocumento.Size = UDim2.new(0, 36, 0, 36)
 btnDocumento.Position = UDim2.new(1, -92, 0.5, -18)
@@ -274,7 +258,6 @@ btnDocumento.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Botão Lâmpada
 local btnLampada = Instance.new("ImageButton", footer)
 btnLampada.Size = UDim2.new(0, 36, 0, 36)
 btnLampada.Position = UDim2.new(1, -46, 0.5, -18)
@@ -287,7 +270,6 @@ strokeLampada.Color = Color3.fromRGB(255, 255, 255)
 strokeLampada.Thickness = 1.5
 strokeLampada.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Botão Flutuante Ferramenta
 local actionButton = Instance.new("TextButton", screenGui)
 actionButton.Name = "CollectorToolButton"
 actionButton.Size = UDim2.new(0, 65, 0, 65)
@@ -326,7 +308,6 @@ btnToggleTool.MouseButton1Click:Connect(function()
     end
 end)
 
--- Mini Interface Arrastável (Nomeação do Prop)
 local nameModal = Instance.new("Frame", screenGui)
 nameModal.Size = UDim2.new(0, 260, 0, 120)
 nameModal.Position = UDim2.new(0.5, -130, 0.4, -60)
@@ -386,7 +367,6 @@ strokeConfirm.Color = Color3.fromRGB(255, 255, 255)
 strokeConfirm.Thickness = 1
 strokeConfirm.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Função para criar Aura ESP
 local function createESP(instance)
     if not instance then return end
 
@@ -403,7 +383,6 @@ local function createESP(instance)
     table.insert(activeHighlights, highlight)
 end
 
--- Identificador do Prop
 local function getPropInformation(part)
     if not part or not part:IsA("BasePart") then return nil, nil, nil, nil end
 
@@ -428,7 +407,6 @@ end
 local function getRootCFrameAndSize(propInstance, clickedPart)
     local targetCF, targetSize, targetColor
 
-    -- 1. Captura da Cor Real (Pintada/Visível)
     if clickedPart and clickedPart:IsA("BasePart") then
         targetColor = clickedPart.Color
     elseif propInstance then
@@ -447,7 +425,6 @@ local function getRootCFrameAndSize(propInstance, clickedPart)
 
     targetColor = targetColor or Color3.fromRGB(255, 255, 255)
 
-    -- 2. Captura do CFrame e Tamanho Raiz
     if propInstance:IsA("Model") then
         if propInstance.PrimaryPart then
             targetCF = propInstance.PrimaryPart.CFrame
@@ -474,7 +451,6 @@ local function getRootCFrameAndSize(propInstance, clickedPart)
     return targetCF, targetSize, targetColor
 end
 
--- Atualização da UI
 local function updateUI()
     for _, child in ipairs(scrollFrame:GetChildren()) do
         if child:IsA("TextBox") then child:Destroy() end
@@ -533,7 +509,6 @@ local function updateUI()
     actionButton.Text = string.format("Data\nCollector\n( %d )", #collectedData)
 end
 
--- Processa confirmação da nomeação
 local function confirmPropName()
     if pendingPropData then
         local customName = nameInput.Text
@@ -559,7 +534,6 @@ nameInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then confirmPropName() end
 end)
 
--- Captura via Raycast ao Clicar com a Tool
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed or not toolEquipped or not actionButton.Visible then return end
 
@@ -641,7 +615,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Limpar dados
 btnClear.MouseButton1Click:Connect(function()
     for _, hl in ipairs(activeHighlights) do
         if hl then hl:Destroy() end
@@ -659,35 +632,22 @@ btnClear.MouseButton1Click:Connect(function()
     updateUI()
 end)
 
--- Copiar dados
+-- Copiar dados (Saindo no formato limpo e em linha única)
 btnCopy.MouseButton1Click:Connect(function()
     local output = "local EstrelaLayout = {\n"
     for i, d in ipairs(collectedData) do
         local c = d.cfComponents
+        local r = math.floor(d.color.R * 255 + 0.5)
+        local g = math.floor(d.color.G * 255 + 0.5)
+        local b = math.floor(d.color.B * 255 + 0.5)
+
         output = output .. string.format(
-            "    [%d] = {\n" ..
-            "        Name = \"%s\",\n" ..
-            "        PropId = \"%s\",\n" ..
-            "        Categoria = \"%s\",\n" ..
-            "        Distance = %.2f,\n" ..
-            "        Pos = Vector3.new(%.3f, %.3f, %.3f),\n" ..
-            "        Rot = Vector3.new(%.2f, %.2f, %.2f),\n" ..
-            "        CFrameToPlayer = CFrame.new(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f),\n" ..
-            "        Size = Vector3.new(%.2f, %.2f, %.2f),\n" ..
-            "        Color = Color3.new(%.3f, %.3f, %.3f),\n" ..
-            "        Remotes = {\n" ..
-            "            EquipTool = {Target = 'game:GetService(\"ReplicatedStorage\").RE[\"1Too1l\"]', Method = 'InvokeServer', Args = {\"PickingTools\", \"PropMaker\"}},\n" ..
-            "            RequestProp = {Target = 'game:GetService(\"ReplicatedStorage\").RE[\"1Clea1rTool1s\"]', Method = 'FireServer', Args = {\"RequestingPropName\", \"%s\", \"%s\"}},\n" ..
-            "            PlaceProp = {Target = 'game:GetService(\"Workspace\")[Player.Name].PropMaker.Tool_PropMake', Method = 'FireServer', Args = {\"Part\", \"Vector3Position\"}}\n" ..
-            "        }\n" ..
-            "    },\n",
-            i, d.name, d.propId, d.categoria, d.distance,
-            d.pos.X, d.pos.Y, d.pos.Z, 
-            d.rot.X, d.rot.Y, d.rot.Z, 
+            "    [%d] = { PropId = \"%s\", Categoria = \"%s\", CFrameToPlayer = CFrame.new(%.3f, %.3f, %.3f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f), Color = Color3.fromRGB(%d, %d, %d) },\n",
+            i,
+            d.propId,
+            d.categoria,
             c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12],
-            d.size.X, d.size.Y, d.size.Z, 
-            d.color.R, d.color.G, d.color.B,
-            d.propId, d.categoria
+            r, g, b
         )
     end
     output = output .. "}"
@@ -703,7 +663,6 @@ btnCopy.MouseButton1Click:Connect(function()
     btnCopy.Text = "Copy data"
 end)
 
--- Botão Flutuante (Toggle UI)
 floatingBtn.MouseButton1Click:Connect(function()
     local currentTime = tick()
     if currentTime - clickTimer < 0.3 then
