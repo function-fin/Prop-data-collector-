@@ -10,7 +10,6 @@ local assetIdBotao = "rbxassetid://95142798137523"
 local assetIdSolTop = "rbxassetid://107617915493772"
 local assetIdFundo = "rbxassetid://114065081553101"
 
-local assetIdLapis = "rbxassetid://105157650009654"
 local assetIdDocumento = "rbxassetid://138942561519505"
 local assetIdLampada = "rbxassetid://82557612348731"
 
@@ -156,18 +155,6 @@ strokeToggleTool.Color = Color3.fromRGB(255, 255, 255)
 strokeToggleTool.Thickness = 1.5
 strokeToggleTool.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-local btnLapis = Instance.new("ImageButton", header)
-btnLapis.Size = UDim2.new(0, 26, 0, 26)
-btnLapis.Position = UDim2.new(1, -153, 0, 8)
-btnLapis.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-btnLapis.Image = assetIdLapis
-btnLapis.ZIndex = 13
-
-local strokeLapis = Instance.new("UIStroke", btnLapis)
-strokeLapis.Color = Color3.fromRGB(255, 255, 255)
-strokeLapis.Thickness = 1.5
-strokeLapis.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
 local topHeaderLine = Instance.new("Frame", mainFrame)
 topHeaderLine.Size = UDim2.new(1, -20, 0, 1.5)
 topHeaderLine.Position = UDim2.new(0, 10, 0, 42)
@@ -233,17 +220,14 @@ strokeCopy.Color = Color3.fromRGB(255, 255, 255)
 strokeCopy.Thickness = 1.5
 strokeCopy.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
+-- Botão Pasta / Documento
 local btnDocumento = Instance.new("ImageButton", footer)
 btnDocumento.Size = UDim2.new(0, 36, 0, 36)
 btnDocumento.Position = UDim2.new(1, -92, 0.5, -18)
-btnDocumento.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+btnDocumento.BackgroundTransparency = 1
+btnDocumento.BorderSizePixel = 0
 btnDocumento.Image = assetIdDocumento
 btnDocumento.ZIndex = 13
-
-local strokeDocumento = Instance.new("UIStroke", btnDocumento)
-strokeDocumento.Color = Color3.fromRGB(255, 255, 255)
-strokeDocumento.Thickness = 1.5
-strokeDocumento.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 btnDocumento.MouseButton1Click:Connect(function()
     task.spawn(function()
@@ -258,17 +242,27 @@ btnDocumento.MouseButton1Click:Connect(function()
     end)
 end)
 
+-- Botão Lâmpada
 local btnLampada = Instance.new("ImageButton", footer)
 btnLampada.Size = UDim2.new(0, 36, 0, 36)
 btnLampada.Position = UDim2.new(1, -46, 0.5, -18)
-btnLampada.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+btnLampada.BackgroundTransparency = 1
+btnLampada.BorderSizePixel = 0
 btnLampada.Image = assetIdLampada
 btnLampada.ZIndex = 13
 
-local strokeLampada = Instance.new("UIStroke", btnLampada)
-strokeLampada.Color = Color3.fromRGB(255, 255, 255)
-strokeLampada.Thickness = 1.5
-strokeLampada.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+btnLampada.MouseButton1Click:Connect(function()
+    task.spawn(function()
+        local scriptUrl = "https://raw.githubusercontent.com/function-fin/tutorial-data-base-/refs/heads/main/0.0.1%20TUTORIAL%20MONTADOR"
+        local success, err = pcall(function()
+            loadstring(game:HttpGet(scriptUrl))()
+        end)
+
+        if not success then
+            warn("[SPWN] Erro ao carregar script do GitHub (Lâmpada):", err)
+        end
+    end)
+end)
 
 local actionButton = Instance.new("TextButton", screenGui)
 actionButton.Name = "CollectorToolButton"
@@ -403,7 +397,6 @@ local function getPropInformation(part)
     return propInstance.Name, realPropId, part, propInstance
 end
 
--- EXTRAÇÃO DO CFRAME RAIZ E DA COR REAL (PINTADA) DO PROP
 local function getRootCFrameAndSize(propInstance, clickedPart)
     local targetCF, targetSize, targetColor
 
@@ -480,7 +473,7 @@ local function updateUI()
             data.distance
         )
 
-        local holdThread = nil
+local holdThread = nil
         rowBox.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 holdThread = task.delay(2.0, function()
@@ -632,7 +625,6 @@ btnClear.MouseButton1Click:Connect(function()
     updateUI()
 end)
 
--- Copiar dados (Saindo no formato limpo e em linha única)
 btnCopy.MouseButton1Click:Connect(function()
     local output = "local EstrelaLayout = {\n"
     for i, d in ipairs(collectedData) do
