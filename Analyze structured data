@@ -20,6 +20,7 @@ local activeHighlights = {}
 local clickTimer = 0
 local toolEquipped = false
 local pendingPropData = nil
+local selectedTargetPlayer = nil
 
 local CategoriaMapa = {
     ["Wall"] = "Building",
@@ -82,7 +83,7 @@ mainFrame.Position = UDim2.new(0.5, -220, 0.5, -155)
 mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 mainFrame.BorderSizePixel = 0
 mainFrame.Visible = false
-mainFrame.ClipsDescendants = true
+mainFrame.ClipsDescendants = false
 mainFrame.ZIndex = 10
 makeDraggable(mainFrame)
 
@@ -192,7 +193,7 @@ footer.ZIndex = 12
 
 local btnClear = Instance.new("TextButton", footer)
 btnClear.Size = UDim2.new(0, 100, 0, 28)
-btnClear.Position = UDim2.new(0, 40, 0.5, -14)
+btnClear.Position = UDim2.new(0, 15, 0.5, -14)
 btnClear.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 btnClear.Text = "Clear data"
 btnClear.Font = Enum.Font.Arcade
@@ -207,7 +208,7 @@ strokeClear.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 local btnCopy = Instance.new("TextButton", footer)
 btnCopy.Size = UDim2.new(0, 100, 0, 28)
-btnCopy.Position = UDim2.new(0, 150, 0.5, -14)
+btnCopy.Position = UDim2.new(0, 125, 0.5, -14)
 btnCopy.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 btnCopy.Text = "Copy data"
 btnCopy.Font = Enum.Font.Arcade
@@ -220,10 +221,21 @@ strokeCopy.Color = Color3.fromRGB(255, 255, 255)
 strokeCopy.Thickness = 1.5
 strokeCopy.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- Botão Pasta / Documento
+local btnPlayersMenu = Instance.new("ImageButton", footer)
+btnPlayersMenu.Size = UDim2.new(0, 32, 0, 32)
+btnPlayersMenu.Position = UDim2.new(1, -135, 0.5, -16)
+btnPlayersMenu.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+btnPlayersMenu.Image = "rbxassetid://10734883356"
+btnPlayersMenu.ZIndex = 13
+
+local strokePlayersBtn = Instance.new("UIStroke", btnPlayersMenu)
+strokePlayersBtn.Color = Color3.fromRGB(255, 255, 255)
+strokePlayersBtn.Thickness = 1.5
+strokePlayersBtn.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
 local btnDocumento = Instance.new("ImageButton", footer)
-btnDocumento.Size = UDim2.new(0, 36, 0, 36)
-btnDocumento.Position = UDim2.new(1, -92, 0.5, -18)
+btnDocumento.Size = UDim2.new(0, 32, 0, 32)
+btnDocumento.Position = UDim2.new(1, -95, 0.5, -16)
 btnDocumento.BackgroundTransparency = 1
 btnDocumento.BorderSizePixel = 0
 btnDocumento.Image = assetIdDocumento
@@ -242,10 +254,9 @@ btnDocumento.MouseButton1Click:Connect(function()
     end)
 end)
 
--- Botão Lâmpada
 local btnLampada = Instance.new("ImageButton", footer)
-btnLampada.Size = UDim2.new(0, 36, 0, 36)
-btnLampada.Position = UDim2.new(1, -46, 0.5, -18)
+btnLampada.Size = UDim2.new(0, 32, 0, 32)
+btnLampada.Position = UDim2.new(1, -55, 0.5, -16)
 btnLampada.BackgroundTransparency = 1
 btnLampada.BorderSizePixel = 0
 btnLampada.Image = assetIdLampada
@@ -263,6 +274,83 @@ btnLampada.MouseButton1Click:Connect(function()
         end
     end)
 end)
+
+local playersSidePanel = Instance.new("Frame", mainFrame)
+playersSidePanel.Size = UDim2.new(0, 130, 1, 0)
+playersSidePanel.Position = UDim2.new(1, 10, 0, 0)
+playersSidePanel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+playersSidePanel.BorderSizePixel = 0
+playersSidePanel.Visible = false
+playersSidePanel.ZIndex = 20
+
+local strokeSidePanel = Instance.new("UIStroke", playersSidePanel)
+strokeSidePanel.Color = Color3.fromRGB(255, 255, 255)
+strokeSidePanel.Thickness = 2
+strokeSidePanel.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local scrollPlayers = Instance.new("ScrollingFrame", playersSidePanel)
+scrollPlayers.Size = UDim2.new(1, -10, 1, -50)
+scrollPlayers.Position = UDim2.new(0, 5, 0, 8)
+scrollPlayers.BackgroundTransparency = 1
+scrollPlayers.ScrollBarThickness = 4
+scrollPlayers.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
+scrollPlayers.ZIndex = 21
+
+local listLayoutPlayers = Instance.new("UIListLayout", scrollPlayers)
+listLayoutPlayers.Padding = UDim.new(0, 4)
+listLayoutPlayers.SortOrder = Enum.SortOrder.LayoutOrder
+
+local btnCopyAll = Instance.new("TextButton", playersSidePanel)
+btnCopyAll.Size = UDim2.new(1, -16, 0, 32)
+btnCopyAll.Position = UDim2.new(0, 8, 1, -40)
+btnCopyAll.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+btnCopyAll.Text = "Copy all"
+btnCopyAll.Font = Enum.Font.Arcade
+btnCopyAll.TextSize = 15
+btnCopyAll.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnCopyAll.ZIndex = 22
+
+local strokeCopyAll = Instance.new("UIStroke", btnCopyAll)
+strokeCopyAll.Color = Color3.fromRGB(255, 255, 255)
+strokeCopyAll.Thickness = 1.5
+strokeCopyAll.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+btnPlayersMenu.MouseButton1Click:Connect(function()
+    playersSidePanel.Visible = not playersSidePanel.Visible
+end)
+
+local function updatePlayersList()
+    for _, child in ipairs(scrollPlayers:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        local pBtn = Instance.new("TextButton", scrollPlayers)
+        pBtn.Size = UDim2.new(1, 0, 0, 22)
+        pBtn.BackgroundTransparency = (selectedTargetPlayer == p) and 0.5 or 1
+        pBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        pBtn.Text = string.upper(p.Name)
+        pBtn.Font = Enum.Font.Arcade
+        pBtn.TextSize = 13
+        pBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        pBtn.TextXAlignment = Enum.TextXAlignment.Left
+        pBtn.ZIndex = 22
+
+        pBtn.MouseButton1Click:Connect(function()
+            selectedTargetPlayer = p
+            updatePlayersList()
+        end)
+    end
+
+    scrollPlayers.CanvasSize = UDim2.new(0, 0, 0, #Players:GetPlayers() * 26)
+end
+
+Players.PlayerAdded:Connect(updatePlayersList)
+Players.PlayerRemoving:Connect(function(p)
+    if selectedTargetPlayer == p then selectedTargetPlayer = nil end
+    updatePlayersList()
+end)
+updatePlayersList()
 
 local actionButton = Instance.new("TextButton", screenGui)
 actionButton.Name = "CollectorToolButton"
@@ -378,60 +466,88 @@ local function createESP(instance)
 end
 
 local function getPropInformation(part)
-    if not part or not part:IsA("BasePart") then return nil, nil, nil, nil end
+    if not part then return nil, nil, nil, nil end
 
     local current = part
     local propInstance = nil
 
     while current and current ~= Workspace do
-        if current:FindFirstChild("SetCurrentCFrame") or current:FindFirstChild("ChangePropColor") or current.Parent == Workspace:FindFirstChild("WorkspaceCom") then
+        if current:FindFirstChild("SetCurrentCFrame") or current:FindFirstChild("ChangePropColor") or (current.Parent and current.Parent == Workspace:FindFirstChild("WorkspaceCom")) then
             propInstance = current
             break
         end
         current = current.Parent
     end
 
-    if not propInstance then return nil, nil, nil, nil end
+    if not propInstance then
+        if part:IsA("Model") or part:IsA("BasePart") then
+            propInstance = part
+        else
+            return nil, nil, nil, nil
+        end
+    end
 
     local realPropId = propInstance:GetAttribute("id") or propInstance.Name
     return propInstance.Name, realPropId, part, propInstance
 end
 
-local function getRootCFrameAndSize(propInstance, clickedPart)
-    local targetCF, targetSize, targetColor
+-- FILTRO INTELIGENTE DE COR: Descarta [40, 40, 40] e prioriza a parte com ColorChange
+local function findPropColor(propInstance, clickedPart)
+    if not propInstance then return Color3.fromRGB(255, 255, 255) end
 
+    -- 1. Se foi clicado diretamente em uma parte e a cor NÃO for [40, 40, 40], usa ela
     if clickedPart and clickedPart:IsA("BasePart") then
-        targetColor = clickedPart.Color
-    elseif propInstance then
-        local attrColor = propInstance:GetAttribute("Color") or propInstance:GetAttribute("PropColor") or propInstance:GetAttribute("PaintColor")
-        if attrColor and typeof(attrColor) == "Color3" then
-            targetColor = attrColor
-        else
-            for _, desc in ipairs(propInstance:GetDescendants()) do
-                if desc:IsA("BasePart") and desc.Transparency < 1 then
-                    targetColor = desc.Color
-                    break
-                end
+        local c = clickedPart.Color
+        local r, g, b = math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5)
+        if not (r == 40 and g == 40 and b == 40) then
+            return clickedPart.Color
+        end
+    end
+
+    -- 2. Procura atributos diretos de cor no modelo
+    local attrColor = propInstance:GetAttribute("Color") or propInstance:GetAttribute("PropColor") or propInstance:GetAttribute("PaintColor")
+    if attrColor and typeof(attrColor) == "Color3" then
+        return attrColor
+    end
+
+    -- 3. Prioriza partes que possuem o script "ColorChange" dentro (segundo Touch do Dex)
+    for _, obj in ipairs(propInstance:GetDescendants()) do
+        if obj:IsA("BasePart") and (obj:FindFirstChild("ColorChange") or obj.Name == "Touch") then
+            local c = obj.Color
+            local r, g, b = math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5)
+            if not (r == 40 and g == 40 and b == 40) then
+                return obj.Color
             end
         end
     end
 
-    targetColor = targetColor or Color3.fromRGB(255, 255, 255)
+    -- 4. Varre todas as BaseParts do Prop descartando qualquer uma com cor [40, 40, 40]
+    for _, part in ipairs(propInstance:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local c = part.Color
+            local r, g, b = math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5)
+            if not (r == 40 and g == 40 and b == 40) then
+                return part.Color
+            end
+        end
+    end
+
+    -- Retorno fallback caso todas as partes sejam [40, 40, 40]
+    return Color3.fromRGB(255, 255, 255)
+end
+
+local function getRootCFrameAndSize(propInstance, clickedPart)
+    local targetCF, targetSize
+    local targetColor = findPropColor(propInstance, clickedPart)
 
     if propInstance:IsA("Model") then
         if propInstance.PrimaryPart then
             targetCF = propInstance.PrimaryPart.CFrame
             targetSize = propInstance.PrimaryPart.Size
         else
-            local rootPart = propInstance:FindFirstChild("Root") or propInstance:FindFirstChild("HumanoidRootPart") or propInstance:FindFirstChild("Main")
-            if rootPart and rootPart:IsA("BasePart") then
-                targetCF = rootPart.CFrame
-                targetSize = rootPart.Size
-            else
-                local cf, sz = propInstance:GetBoundingBox()
-                targetCF = cf
-                targetSize = sz
-            end
+            local cf, sz = propInstance:GetBoundingBox()
+            targetCF = cf
+            targetSize = sz
         end
     elseif propInstance:IsA("BasePart") then
         targetCF = propInstance.CFrame
@@ -442,6 +558,16 @@ local function getRootCFrameAndSize(propInstance, clickedPart)
     end
 
     return targetCF, targetSize, targetColor
+end
+
+local function performRaycast(origin, direction, ignoreList)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = ignoreList
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local maxDistance = 5000
+    local result = Workspace:Raycast(origin, direction * maxDistance, raycastParams)
+    return result
 end
 
 local function updateUI()
@@ -473,7 +599,7 @@ local function updateUI()
             data.distance
         )
 
-local holdThread = nil
+        local holdThread = nil
         rowBox.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 holdThread = task.delay(2.0, function()
@@ -498,6 +624,7 @@ local holdThread = nil
             rowBox.Active = false
         end)
     end
+
     scrollFrame.CanvasSize = UDim2.new(0, 1400, 0, #collectedData * 20)
     actionButton.Text = string.format("Data\nCollector\n( %d )", #collectedData)
 end
@@ -527,8 +654,73 @@ nameInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then confirmPropName() end
 end)
 
+local function processPropSingle(propInstance, targetPart)
+    if not propInstance or selectedProps[propInstance] or propInstance:GetAttribute("SPWN_Collected") then return end
+    
+    local workspaceName, realPropId = getPropInformation(targetPart or propInstance)
+    workspaceName = workspaceName or propInstance.Name
+    realPropId = realPropId or propInstance.Name
+
+    local character = player.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+
+    if hrp then
+        local rootCF, rootSize, rootColor = getRootCFrameAndSize(propInstance, targetPart)
+        local relativeCF = hrp.CFrame:ToObjectSpace(rootCF)
+        local rx, ry, rz = relativeCF:ToOrientation()
+        local distStuds = (rootCF.Position - hrp.Position).Magnitude
+        local categoria = ObterCategoria(realPropId)
+
+        local propData = {
+            name = workspaceName,
+            propId = realPropId,
+            categoria = categoria,
+            pos = relativeCF.Position,
+            rot = Vector3.new(math.deg(rx), math.deg(ry), math.deg(rz)),
+            distance = distStuds,
+            cfComponents = {relativeCF:GetComponents()},
+            size = rootSize,
+            color = rootColor,
+            instance = propInstance
+        }
+
+        createESP(propInstance)
+        selectedProps[propInstance] = true
+        pcall(function() propInstance:SetAttribute("SPWN_Collected", true) end)
+        table.insert(collectedData, propData)
+    end
+end
+
+btnCopyAll.MouseButton1Click:Connect(function()
+    if not selectedTargetPlayer then
+        btnCopyAll.Text = "SELECT PLR!"
+        task.wait(1)
+        btnCopyAll.Text = "Copy all"
+        return
+    end
+
+    local targetName = selectedTargetPlayer.Name
+    local propPrefix = "Prop" .. targetName
+    local countNew = 0
+
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj.Name == propPrefix then
+            if not selectedProps[obj] and not obj:GetAttribute("SPWN_Collected") then
+                processPropSingle(obj, nil)
+                countNew = countNew + 1
+            end
+        end
+    end
+
+    updateUI()
+    btnCopyAll.Text = string.format("ADDED %d!", countNew)
+    task.wait(1.2)
+    btnCopyAll.Text = "Copy all"
+end)
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed or not toolEquipped or not actionButton.Visible then return end
+    if gameProcessed then return end
+    if not toolEquipped then return end
 
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         local pos = input.Position
@@ -558,30 +750,24 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         end
 
         local unitRay = camera:ScreenPointToRay(pos.X, pos.Y)
-        local raycastParams = RaycastParams.new()
-
         local ignoreList = {screenGui}
         for _, p in ipairs(Players:GetPlayers()) do
             if p.Character then table.insert(ignoreList, p.Character) end
         end
 
-        raycastParams.FilterDescendantsInstances = ignoreList
-        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        local raycastResult = performRaycast(unitRay.Origin, unitRay.Direction, ignoreList)
 
-        local raycastResult = Workspace:Raycast(unitRay.Origin, unitRay.Direction * 5000, raycastParams)
         if raycastResult and raycastResult.Instance then
-            local target = raycastResult.Instance
-            local workspaceName, realPropId, targetPart, propInstance = getPropInformation(target)
+            local targetPart = raycastResult.Instance
+            local workspaceName, realPropId, targetPartValid, propInstance = getPropInformation(targetPart)
 
             if propInstance and not selectedProps[propInstance] and not propInstance:GetAttribute("SPWN_Collected") then
                 local character = player.Character
                 local hrp = character and character:FindFirstChild("HumanoidRootPart")
 
                 if hrp then
-                    local rootCF, rootSize, rootColor = getRootCFrameAndSize(propInstance, targetPart)
-
+                    local rootCF, rootSize, rootColor = getRootCFrameAndSize(propInstance, targetPartValid or targetPart)
                     local relativeCF = hrp.CFrame:ToObjectSpace(rootCF)
-
                     local rx, ry, rz = relativeCF:ToOrientation()
                     local distStuds = (rootCF.Position - hrp.Position).Magnitude
                     local categoria = ObterCategoria(realPropId)
