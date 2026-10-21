@@ -21,6 +21,16 @@ local clickTimer = 0
 local toolEquipped = false
 local pendingPropData = nil
 local selectedTargetPlayer = nil
+local isProcessingAll = false
+
+-- CONFIGURAÇÃO DE REDE E ANTI-PING (PROJECT SPWN)
+local SPWN_Config = {
+    TotalCirclePoints = 500,     -- 500 Pontos de Invocação
+    AngleStep = 0.72,            -- 360 / 500 = 0.72 graus por ponto
+    RadiusStuds = 50,            -- Raio do círculo em studs
+    PingTimeout = 2.0,           -- Tempo limite de espera por resposta do servidor
+    StepDelay = 0.05             -- Pausa entre requisições para aliviar o ping
+}
 
 local CategoriaMapa = {
     ["Wall"] = "Building",
@@ -276,7 +286,7 @@ btnLampada.MouseButton1Click:Connect(function()
 end)
 
 local playersSidePanel = Instance.new("Frame", mainFrame)
-playersSidePanel.Size = UDim2.new(0, 130, 1, 0)
+playersSidePanel.Size = UDim2.new(0, 160, 1, 0)
 playersSidePanel.Position = UDim2.new(1, 10, 0, 0)
 playersSidePanel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 playersSidePanel.BorderSizePixel = 0
@@ -306,7 +316,7 @@ btnCopyAll.Position = UDim2.new(0, 8, 1, -40)
 btnCopyAll.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 btnCopyAll.Text = "Copy all"
 btnCopyAll.Font = Enum.Font.Arcade
-btnCopyAll.TextSize = 15
+btnCopyAll.TextSize = 13
 btnCopyAll.TextColor3 = Color3.fromRGB(255, 255, 255)
 btnCopyAll.ZIndex = 22
 
@@ -319,21 +329,41 @@ btnPlayersMenu.MouseButton1Click:Connect(function()
     playersSidePanel.Visible = not playersSidePanel.Visible
 end)
 
+-- CONTADOR REALTIME: Mapeia a quantidade exata de props do jogador no servidor
+local function countPlayerPropsInWorkspace(playerName)
+    local propPrefix = "Prop" .. playerName
+    local totalProps = 0
+    local collectedCount = 0
+
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj.Name == propPrefix then
+            totalProps = totalProps + 1
+            if selectedProps[obj] or obj:GetAttribute("SPWN_Collected") then
+                collectedCount = collectedCount + 1
+            end
+        end
+    end
+    return totalProps, collectedCount
+end
+
 local function updatePlayersList()
     for _, child in ipairs(scrollPlayers:GetChildren()) do
         if child:IsA("TextButton") then child:Destroy() end
     end
 
     for _, p in ipairs(Players:GetPlayers()) do
+        local total, collected = countPlayerPropsInWorkspace(p.Name)
+
         local pBtn = Instance.new("TextButton", scrollPlayers)
-        pBtn.Size = UDim2.new(1, 0, 0, 22)
+        pBtn.Size = UDim2.new(1, 0, 0, 24)
         pBtn.BackgroundTransparency = (selectedTargetPlayer == p) and 0.5 or 1
         pBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        pBtn.Text = string.upper(p.Name)
+        pBtn.Text = string.format("%s (%d/%d)", string.upper(p.Name), collected, total)
         pBtn.Font = Enum.Font.Arcade
-        pBtn.TextSize = 13
+        pBtn.TextSize = 11
         pBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
         pBtn.TextXAlignment = Enum.TextXAlignment.Left
+        pBtn.ClipsDescendants = true
         pBtn.ZIndex = 22
 
         pBtn.MouseButton1Click:Connect(function()
@@ -342,7 +372,7 @@ local function updatePlayersList()
         end)
     end
 
-    scrollPlayers.CanvasSize = UDim2.new(0, 0, 0, #Players:GetPlayers() * 26)
+    scrollPlayers.CanvasSize = UDim2.new(0, 0, 0, #Players:GetPlayers() * 28)
 end
 
 Players.PlayerAdded:Connect(updatePlayersList)
@@ -491,11 +521,9 @@ local function getPropInformation(part)
     return propInstance.Name, realPropId, part, propInstance
 end
 
--- FILTRO INTELIGENTE DE COR: Descarta [40, 40, 40] e prioriza a parte com ColorChange
 local function findPropColor(propInstance, clickedPart)
     if not propInstance then return Color3.fromRGB(255, 255, 255) end
 
-    -- 1. Se foi clicado diretamente em uma parte e a cor NÃO for [40, 40, 40], usa ela
     if clickedPart and clickedPart:IsA("BasePart") then
         local c = clickedPart.Color
         local r, g, b = math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5)
@@ -504,13 +532,11 @@ local function findPropColor(propInstance, clickedPart)
         end
     end
 
-    -- 2. Procura atributos diretos de cor no modelo
     local attrColor = propInstance:GetAttribute("Color") or propInstance:GetAttribute("PropColor") or propInstance:GetAttribute("PaintColor")
     if attrColor and typeof(attrColor) == "Color3" then
         return attrColor
     end
 
-    -- 3. Prioriza partes que possuem o script "ColorChange" dentro (segundo Touch do Dex)
     for _, obj in ipairs(propInstance:GetDescendants()) do
         if obj:IsA("BasePart") and (obj:FindFirstChild("ColorChange") or obj.Name == "Touch") then
             local c = obj.Color
@@ -521,7 +547,6 @@ local function findPropColor(propInstance, clickedPart)
         end
     end
 
-    -- 4. Varre todas as BaseParts do Prop descartando qualquer uma com cor [40, 40, 40]
     for _, part in ipairs(propInstance:GetDescendants()) do
         if part:IsA("BasePart") then
             local c = part.Color
@@ -532,7 +557,6 @@ local function findPropColor(propInstance, clickedPart)
         end
     end
 
-    -- Retorno fallback caso todas as partes sejam [40, 40, 40]
     return Color3.fromRGB(255, 255, 255)
 end
 
@@ -627,6 +651,8 @@ local function updateUI()
 
     scrollFrame.CanvasSize = UDim2.new(0, 1400, 0, #collectedData * 20)
     actionButton.Text = string.format("Data\nCollector\n( %d )", #collectedData)
+    
+    updatePlayersList()
 end
 
 local function confirmPropName()
@@ -654,21 +680,21 @@ nameInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then confirmPropName() end
 end)
 
-local function processPropSingle(propInstance, targetPart)
-    if not propInstance or selectedProps[propInstance] or propInstance:GetAttribute("SPWN_Collected") then return end
+-- PROCESSAMENTO ANCORADO (Anti-Ping / Trava de CFrame)
+local function processPropSingleWithAnchor(propInstance, targetPart, originPivot)
+    if not propInstance or selectedProps[propInstance] or propInstance:GetAttribute("SPWN_Collected") then return false end
     
     local workspaceName, realPropId = getPropInformation(targetPart or propInstance)
     workspaceName = workspaceName or propInstance.Name
     realPropId = realPropId or propInstance.Name
 
-    local character = player.Character
-    local hrp = character and character:FindFirstChild("HumanoidRootPart")
-
-    if hrp then
+    if originPivot then
         local rootCF, rootSize, rootColor = getRootCFrameAndSize(propInstance, targetPart)
-        local relativeCF = hrp.CFrame:ToObjectSpace(rootCF)
+        
+        -- Cálculo estritamente baseado na foto estática da âncora inicial (imune a ping/movimento)
+        local relativeCF = originPivot:ToObjectSpace(rootCF)
         local rx, ry, rz = relativeCF:ToOrientation()
-        local distStuds = (rootCF.Position - hrp.Position).Magnitude
+        local distStuds = (rootCF.Position - originPivot.Position).Magnitude
         local categoria = ObterCategoria(realPropId)
 
         local propData = {
@@ -688,10 +714,35 @@ local function processPropSingle(propInstance, targetPart)
         selectedProps[propInstance] = true
         pcall(function() propInstance:SetAttribute("SPWN_Collected", true) end)
         table.insert(collectedData, propData)
+        return true
     end
+    return false
 end
 
+-- MATRIZ DE INVOCAÇÃO CIRCULAR (500 Pontos a 0.72 Degrees)
+local function GenerateInvocationCircle(originPivot, radius)
+    radius = radius or SPWN_Config.RadiusStuds
+    local circlePoints = {}
+
+    for i = 1, SPWN_Config.TotalCirclePoints do
+        local angleRad = math.rad((i - 1) * SPWN_Config.AngleStep)
+        local xOffset = math.cos(angleRad) * radius
+        local zOffset = math.sin(angleRad) * radius
+
+        local pointCFrame = originPivot * CFrame.new(xOffset, 0, zOffset) * CFrame.Angles(0, -angleRad, 0)
+        table.insert(circlePoints, {
+            Index = i,
+            Angle = (i - 1) * SPWN_Config.AngleStep,
+            CFrame = pointCFrame
+        })
+    end
+
+    return circlePoints
+end
+
+-- COPY ALL CADENCIADO E ANCORADO (Handshake Step-by-Step)
 btnCopyAll.MouseButton1Click:Connect(function()
+    if isProcessingAll then return end
     if not selectedTargetPlayer then
         btnCopyAll.Text = "SELECT PLR!"
         task.wait(1)
@@ -699,23 +750,57 @@ btnCopyAll.MouseButton1Click:Connect(function()
         return
     end
 
+    local character = player.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    isProcessingAll = true
+    
+    -- ANCORAGEM PIVÔ: Trava o CFrame inicial no exato instante zero
+    local originPivot = hrp.CFrame
     local targetName = selectedTargetPlayer.Name
     local propPrefix = "Prop" .. targetName
-    local countNew = 0
 
+    local propsToProcess = {}
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("Model") and obj.Name == propPrefix then
             if not selectedProps[obj] and not obj:GetAttribute("SPWN_Collected") then
-                processPropSingle(obj, nil)
-                countNew = countNew + 1
+                table.insert(propsToProcess, obj)
             end
         end
     end
 
+    local total = #propsToProcess
+    if total == 0 then
+        btnCopyAll.Text = "NO PROPS!"
+        task.wait(1)
+        btnCopyAll.Text = "Copy all"
+        isProcessingAll = false
+        return
+    end
+
+    -- Loop cadenciado com confirmação por lote (Suporte para até 500 estruturas)
+    local addedCount = 0
+    for i, propObj in ipairs(propsToProcess) do
+        local success = processPropSingleWithAnchor(propObj, nil, originPivot)
+        if success then
+            addedCount = addedCount + 1
+        end
+
+        btnCopyAll.Text = string.format("COPY %d/%d", i, total)
+
+        -- Pausa controlada a cada 5 itens para o ping não desincronizar os dados
+        if i % 5 == 0 then
+            updateUI()
+            task.wait(SPWN_Config.StepDelay)
+        end
+    end
+
     updateUI()
-    btnCopyAll.Text = string.format("ADDED %d!", countNew)
-    task.wait(1.2)
+    btnCopyAll.Text = string.format("DONE (+%d)!", addedCount)
+    task.wait(1.5)
     btnCopyAll.Text = "Copy all"
+    isProcessingAll = false
 end)
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
