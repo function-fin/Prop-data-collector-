@@ -25,11 +25,11 @@ local isProcessingAll = false
 
 -- CONFIGURAÇÃO DE REDE E ANTI-PING (PROJECT SPWN)
 local SPWN_Config = {
-    TotalCirclePoints = 500,     -- 500 Pontos de Invocação
-    AngleStep = 0.72,            -- 360 / 500 = 0.72 graus por ponto
-    RadiusStuds = 50,            -- Raio do círculo em studs
-    PingTimeout = 2.0,           -- Tempo limite de espera por resposta do servidor
-    StepDelay = 0.05             -- Pausa entre requisições para aliviar o ping
+    TotalCirclePoints = 500,
+    AngleStep = 0.72,
+    RadiusStuds = 50,
+    PingTimeout = 2.0,
+    StepDelay = 0.05
 }
 
 local CategoriaMapa = {
@@ -49,6 +49,44 @@ screenGui.DisplayOrder = 10
 
 local success = pcall(function() screenGui.Parent = CoreGui end)
 if not success then screenGui.Parent = player:WaitForChild("PlayerGui") end
+
+-- [FIX 1] UIScale para aumentar a UI no PC
+local UiScale = Instance.new("UIScale", screenGui)
+UiScale.Name = "SPWN_UIScale"
+
+local function UpdateUIScale()
+    if not UserInputService.TouchEnabled then
+        UiScale.Scale = 1.9
+    else
+        UiScale.Scale = 1.0
+    end
+end
+
+UpdateUIScale()
+UserInputService.LastInputTypeChanged:Connect(UpdateUIScale)
+-- [FIX 1 fim]
+
+-- [FIX 2] Helper: verifica se um objeto é realmente um PROP válido
+local function isValidProp(instance)
+    if not instance then return false end
+    if not (instance:IsA("Model") or instance:IsA("BasePart")) then return false end
+
+    if instance:FindFirstChild("SetCurrentCFrame", true) or instance:FindFirstChild("ChangePropColor", true) then
+        return true
+    end
+
+    local wsCom = Workspace:FindFirstChild("WorkspaceCom")
+    if wsCom and instance.Parent == wsCom then
+        return true
+    end
+
+    if instance:GetAttribute("id") ~= nil then
+        return true
+    end
+
+    return false
+end
+-- [FIX 2 fim]
 
 local function makeDraggable(guiObject)
     local dragging = false
@@ -257,7 +295,6 @@ btnDocumento.MouseButton1Click:Connect(function()
         local success, err = pcall(function()
             loadstring(game:HttpGet(scriptUrl))()
         end)
-
         if not success then
             warn("[SPWN] Erro ao carregar script do GitHub:", err)
         end
@@ -278,7 +315,6 @@ btnLampada.MouseButton1Click:Connect(function()
         local success, err = pcall(function()
             loadstring(game:HttpGet(scriptUrl))()
         end)
-
         if not success then
             warn("[SPWN] Erro ao carregar script do GitHub (Lâmpada):", err)
         end
@@ -329,14 +365,14 @@ btnPlayersMenu.MouseButton1Click:Connect(function()
     playersSidePanel.Visible = not playersSidePanel.Visible
 end)
 
--- CONTADOR REALTIME: Mapeia a quantidade exata de props do jogador no servidor
+-- [FIX 2] Contador valida se é prop real
 local function countPlayerPropsInWorkspace(playerName)
     local propPrefix = "Prop" .. playerName
     local totalProps = 0
     local collectedCount = 0
 
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj.Name == propPrefix then
+        if obj:IsA("Model") and obj.Name == propPrefix and isValidProp(obj) then
             totalProps = totalProps + 1
             if selectedProps[obj] or obj:GetAttribute("SPWN_Collected") then
                 collectedCount = collectedCount + 1
@@ -495,6 +531,7 @@ local function createESP(instance)
     table.insert(activeHighlights, highlight)
 end
 
+-- [FIX 2] getPropInformation agora SÓ retorna props válidos
 local function getPropInformation(part)
     if not part then return nil, nil, nil, nil end
 
@@ -502,7 +539,7 @@ local function getPropInformation(part)
     local propInstance = nil
 
     while current and current ~= Workspace do
-        if current:FindFirstChild("SetCurrentCFrame") or current:FindFirstChild("ChangePropColor") or (current.Parent and current.Parent == Workspace:FindFirstChild("WorkspaceCom")) then
+        if isValidProp(current) then
             propInstance = current
             break
         end
@@ -510,11 +547,7 @@ local function getPropInformation(part)
     end
 
     if not propInstance then
-        if part:IsA("Model") or part:IsA("BasePart") then
-            propInstance = part
-        else
-            return nil, nil, nil, nil
-        end
+        return nil, nil, nil, nil
     end
 
     local realPropId = propInstance:GetAttribute("id") or propInstance.Name
@@ -683,6 +716,7 @@ end)
 -- PROCESSAMENTO ANCORADO (Anti-Ping / Trava de CFrame)
 local function processPropSingleWithAnchor(propInstance, targetPart, originPivot)
     if not propInstance or selectedProps[propInstance] or propInstance:GetAttribute("SPWN_Collected") then return false end
+    if not isValidProp(propInstance) then return false end
     
     local workspaceName, realPropId = getPropInformation(targetPart or propInstance)
     workspaceName = workspaceName or propInstance.Name
@@ -691,7 +725,6 @@ local function processPropSingleWithAnchor(propInstance, targetPart, originPivot
     if originPivot then
         local rootCF, rootSize, rootColor = getRootCFrameAndSize(propInstance, targetPart)
         
-        -- Cálculo estritamente baseado na foto estática da âncora inicial (imune a ping/movimento)
         local relativeCF = originPivot:ToObjectSpace(rootCF)
         local rx, ry, rz = relativeCF:ToOrientation()
         local distStuds = (rootCF.Position - originPivot.Position).Magnitude
@@ -756,14 +789,13 @@ btnCopyAll.MouseButton1Click:Connect(function()
 
     isProcessingAll = true
     
-    -- ANCORAGEM PIVÔ: Trava o CFrame inicial no exato instante zero
     local originPivot = hrp.CFrame
     local targetName = selectedTargetPlayer.Name
     local propPrefix = "Prop" .. targetName
 
     local propsToProcess = {}
     for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj.Name == propPrefix then
+        if obj:IsA("Model") and obj.Name == propPrefix and isValidProp(obj) then
             if not selectedProps[obj] and not obj:GetAttribute("SPWN_Collected") then
                 table.insert(propsToProcess, obj)
             end
@@ -779,7 +811,6 @@ btnCopyAll.MouseButton1Click:Connect(function()
         return
     end
 
-    -- Loop cadenciado com confirmação por lote (Suporte para até 500 estruturas)
     local addedCount = 0
     for i, propObj in ipairs(propsToProcess) do
         local success = processPropSingleWithAnchor(propObj, nil, originPivot)
@@ -789,7 +820,6 @@ btnCopyAll.MouseButton1Click:Connect(function()
 
         btnCopyAll.Text = string.format("COPY %d/%d", i, total)
 
-        -- Pausa controlada a cada 5 itens para o ping não desincronizar os dados
         if i % 5 == 0 then
             updateUI()
             task.wait(SPWN_Config.StepDelay)
