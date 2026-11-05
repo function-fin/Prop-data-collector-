@@ -50,6 +50,11 @@ screenGui.DisplayOrder = 10
 local success = pcall(function() screenGui.Parent = CoreGui end)
 if not success then screenGui.Parent = player:WaitForChild("PlayerGui") end
 
+-- [SPWN] Atributos de identificação persistente
+screenGui:SetAttribute("SPWN_ManagedScriptID", "PropsCollectorScript")
+screenGui:SetAttribute("SPWN_ManagedScriptName", "Props Data Collector")
+screenGui:SetAttribute("SPWN_ManagedScriptCategory", "Props Data Collector")
+
 -- [FIX 1] UIScale para aumentar a UI no PC
 local UiScale = Instance.new("UIScale", screenGui)
 UiScale.Name = "SPWN_UIScale"
@@ -116,7 +121,9 @@ local function makeDraggable(guiObject)
     end)
 end
 
+-- [SPWN] Botão flutuante renomeado para OpenToggleButton (o Manager atua nele)
 local floatingBtn = Instance.new("ImageButton", screenGui)
+floatingBtn.Name = "OpenToggleButton"
 floatingBtn.Size = UDim2.new(0, 65, 0, 65)
 floatingBtn.Position = UDim2.new(0.03, 0, 0.25, 0)
 floatingBtn.Image = assetIdBotao
@@ -967,5 +974,65 @@ floatingBtn.MouseButton1Click:Connect(function()
                 mainFrame.Visible = not mainFrame.Visible
             end
         end)
+    end
+end)
+
+--------------------------------------------------
+-- [SPWN] ADAPTADOR PERSISTENTE
+--------------------------------------------------
+task.spawn(function()
+    local scriptId = "PropsCollectorScript"
+    local scriptConfig = {
+        Name = "Props Data Collector",
+        Category = "Props Data Collector",
+        GuiObject = screenGui,
+        OnDestroy = function()
+            -- [SPWN] Limpa highlights de ESP dos props (equivalent à ação de Clear)
+            for _, hl in ipairs(activeHighlights) do
+                if hl then pcall(function() hl:Destroy() end) end
+            end
+            activeHighlights = {}
+            -- Remove atributo SPWN_Collected dos props para não deixar estado zumbi
+            for instance, _ in pairs(selectedProps) do
+                if instance and instance.Parent then
+                    pcall(function() instance:SetAttribute("SPWN_Collected", nil) end)
+                end
+            end
+            selectedProps = {}
+            collectedData = {}
+            -- Cancela processamento em lote se estiver rodando
+            isProcessingAll = false
+        end
+    }
+
+    -- Garante a persistência global na memória
+    _G.ScriptManagerQueue = _G.ScriptManagerQueue or {}
+    _G.RegisteredScriptDatabase = _G.RegisteredScriptDatabase or {}
+
+    -- [SPWN] Lê visibilidade persistida em vez de hardcoded true
+    local persistedVis = screenGui:GetAttribute("SPWN_ManagedVisibility")
+
+    _G.RegisteredScriptDatabase[scriptId] = {
+        Name = scriptConfig.Name,
+        Category = scriptConfig.Category,
+        GuiObject = scriptConfig.GuiObject,
+        IsVisible = (persistedVis == nil) and true or persistedVis,
+        OnDestroy = scriptConfig.OnDestroy
+    }
+
+    local exists = false
+    for _, item in ipairs(_G.ScriptManagerQueue) do
+        if item.id == scriptId then
+            exists = true
+            item.config = scriptConfig
+            break
+        end
+    end
+    if not exists then
+        table.insert(_G.ScriptManagerQueue, {id = scriptId, config = scriptConfig})
+    end
+
+    if _G.ScriptManager and type(_G.ScriptManager.RegisterScript) == "function" then
+        _G.ScriptManager.RegisterScript(scriptId, scriptConfig)
     end
 end)
